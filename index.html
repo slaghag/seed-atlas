@@ -113,6 +113,19 @@
   }
   .notefield.show { display: block; }
 
+  #pageControls {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--text-dim);
+  }
+  #pageControls button {
+    background: var(--panel); color: var(--text-main);
+    border: 1px solid var(--panel-border);
+    font-size: 12px; padding: 6px 10px; border-radius: 6px; cursor: pointer;
+  }
+  #pageControls button:hover:not(:disabled) { border-color: var(--ember); }
+  #pageControls button:disabled { opacity: 0.35; cursor: default; }
+  #pageControls button.active { background: var(--ember); color: #1a0e06; border-color: var(--ember); }
+
   #exportBtn, #importBtn {
     background: var(--panel); color: var(--text-main);
     border: 1px solid var(--panel-border);
@@ -274,6 +287,12 @@
   <header>
     <h1>Valheim Seed <span>Atlas</span></h1>
     <div class="meta" id="countLabel">No data loaded</div>
+    <div id="pageControls" style="display:none">
+      <button id="prevPageBtn" onclick="prevPage()">&larr; Prev 50</button>
+      <span id="pageLabel">1-50 of 100</span>
+      <button id="nextPageBtn" onclick="nextPage()">Next 50 &rarr;</button>
+      <button id="showAllBtn" onclick="toggleShowAll()">Show all</button>
+    </div>
     <button id="exportBtn" onclick="exportFavorites()">Export favorites</button>
     <button id="importBtn" onclick="document.getElementById('importFileInput').click()">Import favorites</button>
     <input type="file" id="importFileInput" accept=".json">
@@ -478,11 +497,25 @@ function parseCsv(text) {
 }
 
 let PINS = [];
+let currentPage = 0;
+const PAGE_SIZE = 50;
+let showAllPins = false;
 
 function renderPins() {
   document.querySelectorAll('.pin').forEach(p => p.remove());
   const stage = document.getElementById('stage');
-  PINS.forEach((p, i) => {
+
+  let visiblePins, startIdx;
+  if (showAllPins || PINS.length <= PAGE_SIZE) {
+    visiblePins = PINS;
+    startIdx = 0;
+  } else {
+    startIdx = currentPage * PAGE_SIZE;
+    visiblePins = PINS.slice(startIdx, startIdx + PAGE_SIZE);
+  }
+
+  visiblePins.forEach((p, localI) => {
+    const i = startIdx + localI;
     const pos = offsetToWebPixel(p.offsetX, p.offsetY);
     const el = document.createElement('div');
     const sd = getSeedData(p.seed);
@@ -496,8 +529,43 @@ function renderPins() {
     el.onclick = () => selectPin(i, el);
     stage.appendChild(el);
   });
+
   const favCount = PINS.filter(p => getSeedData(p.seed).favorite).length;
   document.getElementById('countLabel').textContent = PINS.length + ' seed' + (PINS.length===1?'':'s') + ' charted' + (favCount ? '  \u2605 ' + favCount + ' favorited' : '');
+  updatePageControls();
+}
+
+function updatePageControls() {
+  const controls = document.getElementById('pageControls');
+  if (PINS.length <= PAGE_SIZE) {
+    controls.style.display = 'none';
+    return;
+  }
+  controls.style.display = 'flex';
+  const totalPages = Math.ceil(PINS.length / PAGE_SIZE);
+  document.getElementById('prevPageBtn').disabled = showAllPins || currentPage === 0;
+  document.getElementById('nextPageBtn').disabled = showAllPins || currentPage >= totalPages - 1;
+  const label = document.getElementById('pageLabel');
+  if (showAllPins) {
+    label.textContent = 'Showing all ' + PINS.length;
+  } else {
+    const start = currentPage * PAGE_SIZE + 1;
+    const end = Math.min((currentPage + 1) * PAGE_SIZE, PINS.length);
+    label.textContent = start + '-' + end + ' of ' + PINS.length;
+  }
+  document.getElementById('showAllBtn').classList.toggle('active', showAllPins);
+}
+
+function prevPage() {
+  if (currentPage > 0) { currentPage--; renderPins(); }
+}
+function nextPage() {
+  const totalPages = Math.ceil(PINS.length / PAGE_SIZE);
+  if (currentPage < totalPages - 1) { currentPage++; renderPins(); }
+}
+function toggleShowAll() {
+  showAllPins = !showAllPins;
+  renderPins();
 }
 
 let currentSeed = '';
@@ -634,16 +702,19 @@ function loadCsvText(text, filename) {
   const errEl = document.getElementById('dropErr');
   if (parsed === null) {
     errEl.textContent = "That doesn't look like a results.csv (expected Seed, OffsetX, OffsetY columns).";
-    return;
+    return false;
   }
   if (parsed.length === 0) {
     errEl.textContent = "No valid rows found in that file.";
-    return;
+    return false;
   }
   errEl.textContent = "";
   PINS = parsed;
+  currentPage = 0;
+  showAllPins = false;
   renderPins();
   document.getElementById('dropzone').classList.add('hidden');
+  return true;
 }
 
 document.getElementById('fileInput').addEventListener('change', (e) => {
@@ -653,6 +724,13 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
   reader.onload = (ev) => loadCsvText(ev.target.result, file.name);
   reader.readAsText(file);
 });
+
+// try auto-loading results.csv from the same folder as this page (works when hosted,
+// not over a plain file:// open - drag-and-drop still works as a fallback either way)
+fetch('results.csv')
+  .then(r => { if (!r.ok) throw new Error('not found'); return r.text(); })
+  .then(text => { loadCsvText(text, 'results.csv'); })
+  .catch(() => { /* silent - dropzone stays up for manual load */ });
 
 const dropbox = document.getElementById('dropbox');
 const dropzone = document.getElementById('dropzone');
