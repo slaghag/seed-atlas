@@ -6,7 +6,9 @@ Interactive map showing where Valheim seeds land on the game's shared world layo
 
 ## Attribution
 
-Seed rendering/preview powered by [valheim-map.world](https://valheim-map.world/) (by wd40bomber7) — this project links out to it but is otherwise unaffiliated.
+- Master world map by [u/Wethospu_](https://www.reddit.com/user/Wethospu_/) — [original post](https://www.reddit.com/r/valheim/comments/qere7a/the_world_map/)
+- Mountain peak locations/heights by [u/RandomLizard67](https://www.reddit.com/user/RandomLizard67/) — [original post](https://www.reddit.com/r/valheim/comments/1antqx9/valheim_master_map/#lightbox)
+- Seed rendering/preview powered by [valheim-map.world](https://valheim-map.world/) (by wd40bomber7) — this project links out to it but is otherwise unaffiliated
 
 ## Using the atlas
 
