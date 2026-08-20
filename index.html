@@ -132,6 +132,13 @@
     font-size: 12px; padding: 8px 14px; border-radius: 6px; cursor: pointer;
   }
   #exportBtn:hover, #importBtn:hover { border-color: var(--peak-gold); }
+  #favFilterBtn {
+    background: var(--panel); color: var(--text-main);
+    border: 1px solid var(--panel-border);
+    font-size: 12px; padding: 8px 14px; border-radius: 6px; cursor: pointer;
+  }
+  #favFilterBtn:hover { border-color: var(--peak-gold); }
+  #favFilterBtn.active { background: var(--peak-gold); color: #3a2e0f; border-color: var(--peak-gold); }
   #importFileInput { display: none; }
 
   .boundary {
@@ -296,6 +303,7 @@
     <button id="exportBtn" onclick="exportFavorites()">Export favorites</button>
     <button id="importBtn" onclick="document.getElementById('importFileInput').click()">Import favorites</button>
     <input type="file" id="importFileInput" accept=".json">
+    <button id="favFilterBtn" onclick="toggleFavoritesOnly()">&#9733; Show favorites</button>
     <button id="loadBtn" onclick="document.getElementById('fileInput').click()">Load results.csv</button>
     <input type="file" id="fileInput" accept=".csv">
   </header>
@@ -500,22 +508,31 @@ let PINS = [];
 let currentPage = 0;
 const PAGE_SIZE = 50;
 let showAllPins = false;
+let showFavoritesOnly = false;
+
+function getFilteredPins() {
+  if (showFavoritesOnly) {
+    return PINS.filter(p => getSeedData(p.seed).favorite);
+  }
+  return PINS;
+}
 
 function renderPins() {
   document.querySelectorAll('.pin').forEach(p => p.remove());
   const stage = document.getElementById('stage');
+  const filtered = getFilteredPins();
 
   let visiblePins, startIdx;
-  if (showAllPins || PINS.length <= PAGE_SIZE) {
-    visiblePins = PINS;
+  if (showAllPins || filtered.length <= PAGE_SIZE) {
+    visiblePins = filtered;
     startIdx = 0;
   } else {
     startIdx = currentPage * PAGE_SIZE;
-    visiblePins = PINS.slice(startIdx, startIdx + PAGE_SIZE);
+    visiblePins = filtered.slice(startIdx, startIdx + PAGE_SIZE);
   }
 
   visiblePins.forEach((p, localI) => {
-    const i = startIdx + localI;
+    const globalI = PINS.indexOf(p);  // index into the real PINS array for selectPin
     const pos = offsetToWebPixel(p.offsetX, p.offsetY);
     const el = document.createElement('div');
     const sd = getSeedData(p.seed);
@@ -525,33 +542,36 @@ function renderPins() {
     el.className = cls;
     el.style.left = pos.wx + 'px';
     el.style.top = pos.wy + 'px';
+    el.dataset.seed = p.seed;
     el.innerHTML = '<div class="dot"></div>';
-    el.onclick = () => selectPin(i, el);
+    el.onclick = () => selectPin(globalI, el);
     stage.appendChild(el);
   });
 
   const favCount = PINS.filter(p => getSeedData(p.seed).favorite).length;
   document.getElementById('countLabel').textContent = PINS.length + ' seed' + (PINS.length===1?'':'s') + ' charted' + (favCount ? '  \u2605 ' + favCount + ' favorited' : '');
+  document.getElementById('favFilterBtn').classList.toggle('active', showFavoritesOnly);
   updatePageControls();
 }
 
 function updatePageControls() {
   const controls = document.getElementById('pageControls');
-  if (PINS.length <= PAGE_SIZE) {
+  const filtered = getFilteredPins();
+  if (filtered.length <= PAGE_SIZE) {
     controls.style.display = 'none';
     return;
   }
   controls.style.display = 'flex';
-  const totalPages = Math.ceil(PINS.length / PAGE_SIZE);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   document.getElementById('prevPageBtn').disabled = showAllPins || currentPage === 0;
   document.getElementById('nextPageBtn').disabled = showAllPins || currentPage >= totalPages - 1;
   const label = document.getElementById('pageLabel');
   if (showAllPins) {
-    label.textContent = 'Showing all ' + PINS.length;
+    label.textContent = 'Showing all ' + filtered.length;
   } else {
     const start = currentPage * PAGE_SIZE + 1;
-    const end = Math.min((currentPage + 1) * PAGE_SIZE, PINS.length);
-    label.textContent = start + '-' + end + ' of ' + PINS.length;
+    const end = Math.min((currentPage + 1) * PAGE_SIZE, filtered.length);
+    label.textContent = start + '-' + end + ' of ' + filtered.length;
   }
   document.getElementById('showAllBtn').classList.toggle('active', showAllPins);
 }
@@ -560,11 +580,16 @@ function prevPage() {
   if (currentPage > 0) { currentPage--; renderPins(); }
 }
 function nextPage() {
-  const totalPages = Math.ceil(PINS.length / PAGE_SIZE);
+  const totalPages = Math.ceil(getFilteredPins().length / PAGE_SIZE);
   if (currentPage < totalPages - 1) { currentPage++; renderPins(); }
 }
 function toggleShowAll() {
   showAllPins = !showAllPins;
+  renderPins();
+}
+function toggleFavoritesOnly() {
+  showFavoritesOnly = !showFavoritesOnly;
+  currentPage = 0;
   renderPins();
 }
 
@@ -625,10 +650,8 @@ function openRender() {
   renderPins();
   // re-select so the panel + active highlight survive the re-render
   const i = PINS.findIndex(p => p.seed === currentSeed);
-  if (i !== -1) {
-    const el = document.querySelectorAll('.pin')[i];
-    if (el) selectPin(i, el);
-  }
+  const el = document.querySelector('.pin[data-seed="' + CSS.escape(currentSeed) + '"]');
+  if (i !== -1 && el) selectPin(i, el);
 }
 
 function toggleFavorite() {
@@ -642,11 +665,8 @@ function toggleFavorite() {
   favBtn.classList.toggle('fav-on', sd.favorite);
   noteField.classList.toggle('show', sd.favorite);
   renderPins();
-  const i = PINS.findIndex(p => p.seed === currentSeed);
-  if (i !== -1) {
-    const el = document.querySelectorAll('.pin')[i];
-    if (el) { el.classList.add('active'); currentPinEl = el; }
-  }
+  const el = document.querySelector('.pin[data-seed="' + CSS.escape(currentSeed) + '"]');
+  if (el) { el.classList.add('active'); currentPinEl = el; }
 }
 
 function saveNote() {
