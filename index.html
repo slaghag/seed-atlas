@@ -747,7 +747,7 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
 
 // try auto-loading results.csv from the same folder as this page (works when hosted,
 // not over a plain file:// open - drag-and-drop still works as a fallback either way)
-fetch('results.csv')
+fetch('results.csv?v=' + Date.now(), { cache: 'no-store' })
   .then(r => { if (!r.ok) throw new Error('not found'); return r.text(); })
   .then(text => { loadCsvText(text, 'results.csv'); })
   .catch(() => { /* silent - dropzone stays up for manual load */ });
