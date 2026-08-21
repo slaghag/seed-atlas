@@ -61,21 +61,18 @@
   input[type=text]:focus, input[type=number]:focus {
     outline: none; border-color: var(--accent-dim);
   }
+  textarea.fav-note-input {
+    background: #090d0e; border: 1px solid var(--panel-border); color: var(--ink);
+    font-family: var(--serif); font-size: 12px; padding: 6px 8px; border-radius: 4px;
+    width: 100%; resize: vertical; margin-top: 4px;
+  }
+  textarea.fav-note-input:focus { outline: none; border-color: var(--accent-dim); }
+  .fav-star {
+    cursor: pointer; font-size: 18px; line-height: 1; color: var(--dim);
+    user-select: none;
+  }
+  .fav-star:hover, .fav-star.active { color: var(--accent); }
   
-  /* Click Mode Selector */
-  .mode-toggle {
-    display: flex; gap: 4px; background: #090d0e; padding: 3px;
-    border: 1px solid var(--panel-border); border-radius: 4px; margin-bottom: 8px;
-  }
-  .mode-btn {
-    flex: 1; background: transparent; border: none; color: var(--dim);
-    font-family: var(--mono); font-size: 10px; padding: 6px; border-radius: 3px;
-    cursor: pointer; text-align: center; text-transform: uppercase;
-  }
-  .mode-btn.active {
-    background: var(--panel-border); color: var(--accent); font-weight: bold;
-  }
-
   /* Checkboxes & Action Buttons */
   .checkbox-label {
     display: flex; align-items: center; gap: 8px; font-family: var(--mono);
@@ -95,16 +92,6 @@
   .btn-small {
     padding: 4px 8px; font-size: 10px; font-family: var(--mono);
   }
-
-  /* Presets */
-  .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
-  .preset-btn {
-    background: transparent; border: 1px solid var(--panel-border); color: var(--dim);
-    font-family: var(--mono); font-size: 10px; padding: 4px 8px; border-radius: 12px;
-    cursor: pointer;
-  }
-  .preset-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
-  .preset-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(201, 162, 75, 0.1); }
 
   /* Details & Results Panel */
   .detail-box {
@@ -166,20 +153,19 @@
     pointer-events: none; transform: translate(-50%, -50%); z-index: 4;
     background: rgba(201, 162, 75, 0.05);
   }
-  .inclusion-marker {
-    position: absolute; width: 20px; height: 20px; margin-left: -10px; margin-top: -10px;
-    border: 2px solid #3faab5; border-radius: 50%; z-index: 7;
-    background: rgba(63, 170, 181, 0.2); display: none; cursor: move;
+  .target-marker-icon {
+    position: absolute; top: 50%; left: 50%; width: 22px; height: 22px;
+    transform: translate(-50%, -50%); pointer-events: none;
   }
-  .inclusion-marker::after {
-    content: ''; position: absolute; top: 50%; left: 50%; width: 4px; height: 4px;
-    margin-left: -2px; margin-top: -2px; background: #3faab5; border-radius: 50%;
+  .world-boundary-ring {
+    position: absolute; border: 2px dashed #4ba2c9; border-radius: 50%;
+    pointer-events: none; transform: translate(-50%, -50%); z-index: 3;
   }
   .status { font-family: var(--mono); font-size: 11px; color: var(--dim); min-height: 14px; }
 
   /* Achievable Spawn-Center Region Outline */
   #achievableOutline {
-    position: absolute; border: 1px dashed var(--danger);
+    position: absolute; border: 3px dashed var(--danger);
     pointer-events: none; z-index: 2;
   }
 
@@ -199,15 +185,6 @@
   </div>
   
   <div class="sidebar-content">
-    <!-- Map Click Target Selector -->
-    <div>
-      <div class="section-title">Map Click Action</div>
-      <div class="mode-toggle">
-        <button class="mode-btn active" id="modeTargetBtn" onclick="setClickMode('target')">Set Spawn Target</button>
-        <button class="mode-btn" id="modeInclusionBtn" onclick="setClickMode('inclusion')">Set Inclusion Point</button>
-      </div>
-    </div>
-
     <!-- Generator Target Search -->
     <div>
       <div class="section-title">Spawn Target Search</div>
@@ -222,41 +199,9 @@
             <input type="number" id="wanted" value="5" max="10" min="1">
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Point Inclusion Filter & Presets -->
-    <div>
-      <div class="section-title">
-        <span>Point Inclusion Filter</span>
-        <button class="btn btn-secondary btn-small" onclick="clearInclusionFilter()">Clear</button>
-      </div>
-      <div class="field-group">
-        <label class="checkbox-label">
-          <input type="checkbox" id="pointFilterActive"> Enable Inclusion Safety Check
-        </label>
-        
-        <div class="field-row">
-          <div class="field">
-            <label>INCLUDE X</label>
-            <input type="number" id="pix" value="0">
-          </div>
-          <div class="field">
-            <label>INCLUDE Y</label>
-            <input type="number" id="piy" value="0">
-          </div>
-        </div>
-
-        <div>
-          <label>MOUNTAIN LANDMARK PRESETS</label>
-          <div class="presets" id="mountainPresets"></div>
-        </div>
-
-        <!-- Landmark Inclusion Detail -->
-        <div id="landmarkDetailContainer"></div>
 
         <button class="btn" id="generateBtn" style="margin-top: 8px;">Generate Seeds</button>
-        <div class="status" id="status">Click map or drag pins to target coordinates.</div>
+        <div class="status" id="status">Click the map to set your spawn target.</div>
       </div>
     </div>
 
@@ -301,8 +246,10 @@
     <div id="stage">
       <img id="mapImg" src="map.webp" alt="Valheim Master Map">
       <div id="achievableOutline"></div>
-      <div id="targetMarker" class="target-marker" style="display:none;"></div>
-      <div id="inclusionMarker" class="inclusion-marker"></div>
+      <div id="targetMarker" class="target-marker" style="display:none;">
+        <img src="pin.svg" class="target-marker-icon" alt="Spawn point">
+      </div>
+      <div id="worldBoundaryRing" class="world-boundary-ring" style="display:none;"></div>
       <div id="pinsContainer"></div>
     </div>
   </div>
@@ -362,6 +309,15 @@ function clampToAchievable(x, y) {
   ];
 }
 
+// ---- WORLD BOUNDARY (true playable world radius, distinct from the ----
+// ---- achievable spawn-center clamp above, even though both = 10000) ----
+// Confirmed via Valheim's own World Radius setting (default 10000m; the
+// World Edge Size setting adds another 500m of ocean/void transition beyond
+// that, so land/ocean generation itself stops at this radius from whatever
+// point a seed's offset lands on).
+const WORLD_RADIUS_OFFSET = 10000;
+const WORLD_RADIUS_STAGE_PX = WORLD_RADIUS_OFFSET * 0.089734 * SCALE_FACTOR;
+
 function renderAchievableOutline() {
   // Trace a dashed outline around the achievable rect rather than dimming
   // everything outside it — the rect itself never changes, so this only
@@ -372,13 +328,6 @@ function renderAchievableOutline() {
   outlineEl.style.width = `${achRightPx - achLeftPx}px`;
   outlineEl.style.height = `${achBottomPx - achTopPx}px`;
 }
-
-// ---- MOUNTAIN LANDMARK PRESETS ----
-const MOUNTAIN_PRESETS = [
-  { name: 'Polaris', px: 2017, py: 264, height: '~485m', region: 'Far North', note: 'Tallest peak in the world. High risk of Deep North polar curve overwrite if shifted north.' },
-  { name: 'Hook', px: 991, py: 1457, height: '~464m', region: 'West / Central', note: '2nd tallest peak. Excellent central mountain feature for temperate zone seeds.' },
-  { name: 'Thorn', px: 2438, py: 2448, height: '~426m', region: 'South-East', note: '3rd tallest peak. Vulnerable to Ashlands radial water barrier if shifted south.' }
-];
 
 // ---- PAN & ZOOM CONTROLS ----
 const mapWrap = document.getElementById('mapwrap');
@@ -398,7 +347,7 @@ function updateTransform() {
 }
 
 mapWrap.addEventListener('mousedown', (e) => {
-  if (e.button !== 0 || e.target.classList.contains('map-btn') || e.target.id === 'inclusionMarker') return;
+  if (e.button !== 0 || e.target.classList.contains('map-btn')) return;
   isPanning = true;
   startX = e.clientX - pointX;
   startY = e.clientY - pointY;
@@ -406,10 +355,6 @@ mapWrap.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mousemove', (e) => {
-  if (isDraggingInclusion) {
-    handleInclusionDrag(e);
-    return;
-  }
   if (!isPanning) return;
   e.preventDefault();
   pointX = e.clientX - startX;
@@ -421,9 +366,6 @@ window.addEventListener('mouseup', () => {
   if (isPanning) {
     isPanning = false;
     mapWrap.style.cursor = 'grab';
-  }
-  if (isDraggingInclusion) {
-    isDraggingInclusion = false;
   }
 });
 
@@ -508,14 +450,11 @@ function randomSeedString(len = 10) {
 // ---- APP STATE & DOM REFS ----
 let generatedSeeds = [];
 let favoriteSeeds = JSON.parse(localStorage.getItem('valheimAtlasFavs') || '[]');
-let activeLandmark = null;
-let activeClickMode = 'target'; // 'target' | 'inclusion'
-let isDraggingInclusion = false;
 let selectedSeedName = null;
 
 const pinsContainer = document.getElementById('pinsContainer');
 const targetMarker = document.getElementById('targetMarker');
-const inclusionMarker = document.getElementById('inclusionMarker');
+const worldBoundaryRing = document.getElementById('worldBoundaryRing');
 let currentTargetX = 0;
 let currentTargetY = 0;
 const radiusEl = document.getElementById('radius');
@@ -525,110 +464,29 @@ const statusEl = document.getElementById('status');
 const detailContainer = document.getElementById('detailContainer');
 const favsList = document.getElementById('favsList');
 const resultsList = document.getElementById('resultsList');
-const pointFilterActiveEl = document.getElementById('pointFilterActive');
-const pixEl = document.getElementById('pix');
-const piyEl = document.getElementById('piy');
-const mountainPresetsEl = document.getElementById('mountainPresets');
-const landmarkDetailContainer = document.getElementById('landmarkDetailContainer');
 const showFavsToggle = document.getElementById('showFavsToggle');
 const clampWarningEl = document.getElementById('clampWarningEl');
 
 renderAchievableOutline();
 
-// Click Mode Switcher
-function setClickMode(mode) {
-  activeClickMode = mode;
-  document.getElementById('modeTargetBtn').classList.toggle('active', mode === 'target');
-  document.getElementById('modeInclusionBtn').classList.toggle('active', mode === 'inclusion');
-}
-
-// Populate Mountain Inclusion Presets
-MOUNTAIN_PRESETS.forEach(m => {
-  const [ox, oy] = pxToOffset(m.px, m.py);
-  const btn = document.createElement('button');
-  btn.className = 'preset-btn';
-  btn.textContent = m.name;
-  btn.onclick = () => selectMountainPreset(m, ox, oy, btn);
-  mountainPresetsEl.appendChild(btn);
-});
-
-function selectMountainPreset(landmark, ox, oy, btnEl) {
-  document.querySelectorAll('#mountainPresets .preset-btn').forEach(b => b.classList.remove('active'));
-  if (btnEl) btnEl.classList.add('active');
-  
-  pointFilterActiveEl.checked = true;
-  pixEl.value = ox;
-  piyEl.value = oy;
-  activeLandmark = landmark;
-
-  landmarkDetailContainer.innerHTML = `
-    <div class="detail-box" style="margin-top:6px;">
-      <div class="title">${landmark.name} Mountain</div>
-      <div class="row">Peak Height: <span>${landmark.height}</span></div>
-      <div class="row">Region: <span>${landmark.region}</span></div>
-      <div class="row">Coords: <span>(${ox}, ${oy})</span></div>
-      <div class="note">${landmark.note}</div>
-    </div>
-  `;
-  
-  updateInclusionMarker();
-}
-
-function clearInclusionFilter() {
-  pointFilterActiveEl.checked = false;
-  pixEl.value = 0;
-  piyEl.value = 0;
-  activeLandmark = null;
-  document.querySelectorAll('#mountainPresets .preset-btn').forEach(b => b.classList.remove('active'));
-  landmarkDetailContainer.innerHTML = '';
-  updateInclusionMarker();
-}
-
-// Map Stage Click Handlers
+// Map Stage Click Handler — clicking always sets the spawn target now that
+// the inclusion-point filter has been removed. Clicks outside the achievable
+// rect clamp to the nearest valid point rather than being rejected.
 mapWrap.addEventListener('click', (e) => {
-  if (e.target.classList.contains('pin') || e.target.classList.contains('map-btn') || e.target.id === 'inclusionMarker') return;
+  if (e.target.classList.contains('pin') || e.target.classList.contains('map-btn')) return;
 
   const stageRect = stage.getBoundingClientRect();
   const clickX = (e.clientX - stageRect.left) / scale;
   const clickY = (e.clientY - stageRect.top) / scale;
   const [ox, oy] = stagePxToOffset(clickX, clickY);
 
-  if (activeClickMode === 'target') {
-    const wasAchievable = isTargetAchievable(ox, oy);
-    const [cx, cy] = clampToAchievable(ox, oy);
-    currentTargetX = cx;
-    currentTargetY = cy;
-    clampWarningEl.style.display = wasAchievable ? 'none' : 'block';
-    updateTargetMarker();
-  } else {
-    pointFilterActiveEl.checked = true;
-    pixEl.value = ox;
-    piyEl.value = oy;
-    document.querySelectorAll('#mountainPresets .preset-btn').forEach(b => b.classList.remove('active'));
-    landmarkDetailContainer.innerHTML = '';
-    updateInclusionMarker();
-  }
+  const wasAchievable = isTargetAchievable(ox, oy);
+  const [cx, cy] = clampToAchievable(ox, oy);
+  currentTargetX = cx;
+  currentTargetY = cy;
+  clampWarningEl.style.display = wasAchievable ? 'none' : 'block';
+  updateTargetMarker();
 });
-
-// Draggable Inclusion Marker
-inclusionMarker.addEventListener('mousedown', (e) => {
-  e.stopPropagation();
-  isDraggingInclusion = true;
-});
-
-function handleInclusionDrag(e) {
-  const stageRect = stage.getBoundingClientRect();
-  const clickX = (e.clientX - stageRect.left) / scale;
-  const clickY = (e.clientY - stageRect.top) / scale;
-  const [ox, oy] = stagePxToOffset(clickX, clickY);
-
-  pointFilterActiveEl.checked = true;
-  pixEl.value = ox;
-  piyEl.value = oy;
-  document.querySelectorAll('#mountainPresets .preset-btn').forEach(b => b.classList.remove('active'));
-  landmarkDetailContainer.innerHTML = '';
-  updateInclusionMarker();
-}
 
 function updateTargetMarker() {
   const rad = parseInt(radiusEl.value, 10) || 150;
@@ -640,51 +498,18 @@ function updateTargetMarker() {
   targetMarker.style.top = `${sY}px`;
   targetMarker.style.width = `${stageRad * 2}px`;
   targetMarker.style.height = `${stageRad * 2}px`;
-}
 
-function updateInclusionMarker() {
-  if (!pointFilterActiveEl.checked) {
-    inclusionMarker.style.display = 'none';
-    return;
-  }
-  const pix = parseInt(pixEl.value, 10) || 0;
-  const piy = parseInt(piyEl.value, 10) || 0;
-  const [sX, sY] = offsetToStagePx(pix, piy);
-
-  inclusionMarker.style.display = 'block';
-  inclusionMarker.style.left = `${sX}px`;
-  inclusionMarker.style.top = `${sY}px`;
+  // Blue ring: if a seed's spawn landed exactly here, this is how far its
+  // playable world actually extends (true world radius, not the small
+  // match-tolerance circle above).
+  worldBoundaryRing.style.display = 'block';
+  worldBoundaryRing.style.left = `${sX}px`;
+  worldBoundaryRing.style.top = `${sY}px`;
+  worldBoundaryRing.style.width = `${WORLD_RADIUS_STAGE_PX * 2}px`;
+  worldBoundaryRing.style.height = `${WORLD_RADIUS_STAGE_PX * 2}px`;
 }
 
 radiusEl.addEventListener('input', updateTargetMarker);
-pixEl.addEventListener('input', () => {
-  document.querySelectorAll('#mountainPresets .preset-btn').forEach(b => b.classList.remove('active'));
-  landmarkDetailContainer.innerHTML = '';
-  updateInclusionMarker();
-});
-piyEl.addEventListener('input', () => {
-  document.querySelectorAll('#mountainPresets .preset-btn').forEach(b => b.classList.remove('active'));
-  landmarkDetailContainer.innerHTML = '';
-  updateInclusionMarker();
-});
-pointFilterActiveEl.addEventListener('change', updateInclusionMarker);
-
-// ---- INCLUSION & POLAR SAFETY CALCULATIONS ----
-function isPointIncludedInSeed(seedOx, seedOy, pix, piy) {
-  const effX = pix - seedOx;
-  const effY = piy - seedOy;
-
-  const distFromCenter = Math.hypot(effX, effY);
-  if (distFromCenter > 10000) return false;
-
-  const polarCurveFactor = Math.abs(effX) * 0.15;
-  const northBoundary = 6500 + polarCurveFactor;
-  const southBoundary = -6500 - polarCurveFactor;
-
-  if (effY > northBoundary || effY < southBoundary) return false;
-
-  return true;
-}
 
 // ---- NON-BLOCKING SEED GENERATION LOOP ----
 let searching = false;
@@ -697,10 +522,6 @@ function runGeneration() {
   const ty = currentTargetY;
   const radius = Math.max(1, parseInt(radiusEl.value, 10) || 150);
   const wanted = Math.max(1, Math.min(10, parseInt(wantedEl.value, 10) || 5));
-
-  const filterInclusion = pointFilterActiveEl.checked;
-  const pix = parseInt(pixEl.value, 10) || 0;
-  const piy = parseInt(piyEl.value, 10) || 0;
 
   const maxTries = 2_000_000;
   generatedSeeds = [];
@@ -716,9 +537,7 @@ function runGeneration() {
       
       const dist = Math.hypot(ox - tx, oy - ty);
       if (dist <= radius) {
-        if (!filterInclusion || isPointIncludedInSeed(ox, oy, pix, piy)) {
-          generatedSeeds.push({ seed: s, ox, oy, dist });
-        }
+        generatedSeeds.push({ seed: s, ox, oy, dist });
       }
     }
 
@@ -793,17 +612,28 @@ function renderResultsList() {
   });
 }
 
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, m => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[m]));
+}
+
 function showDetail(item, isFav = false) {
   selectedSeedName = item.seed;
   renderPins();
   renderResultsList();
 
   const isSaved = favoriteSeeds.some(f => f.seed === item.seed);
+  const savedEntry = favoriteSeeds.find(f => f.seed === item.seed);
+  const noteValue = savedEntry && savedEntry.note ? savedEntry.note : '';
   const inspectorUrl = `https://valheim-map.world/?seed=${encodeURIComponent(item.seed)}&offset=${item.ox}%2C${item.oy}&zoom=1.000&view=0&ver=0.221.10`;
 
   detailContainer.innerHTML = `
     <div class="detail-box">
-      <div class="title">${item.seed}</div>
+      <div class="title" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span>${item.seed}</span>
+        <span class="fav-star ${isSaved ? 'active' : ''}" title="${isSaved ? 'Remove from favorites' : 'Save to favorites'}" onclick="toggleFav('${item.seed}', ${item.ox}, ${item.oy})">${isSaved ? '★' : '☆'}</span>
+      </div>
       <div class="row">OffsetX: <span>${item.ox}</span></div>
       <div class="row">OffsetY: <span>${item.oy}</span></div>
       <div class="row">Target Dist: <span>${item.dist ? item.dist.toFixed(1) : 'N/A'}</span></div>
@@ -817,9 +647,10 @@ function showDetail(item, isFav = false) {
         External tool created by wd40bomber7. Opens in new tab.
       </div>
 
-      <button class="btn btn-secondary" style="margin-top:8px;" onclick="toggleFav('${item.seed}', ${item.ox}, ${item.oy})">
-        ${isSaved ? 'Remove Favorite' : 'Save to Favorites'}
-      </button>
+      ${isSaved ? `
+      <label style="display:block; margin-top:10px;">NOTES</label>
+      <textarea class="fav-note-input" rows="3" placeholder="Why did you favorite this one?" oninput="updateFavNote('${item.seed}', this.value)">${escapeHtml(noteValue)}</textarea>
+      ` : ''}
     </div>
   `;
 }
@@ -829,11 +660,20 @@ function toggleFav(seed, ox, oy) {
   if (idx >= 0) {
     favoriteSeeds.splice(idx, 1);
   } else {
-    favoriteSeeds.push({ seed, ox, oy });
+    favoriteSeeds.push({ seed, ox, oy, note: '' });
   }
   localStorage.setItem('valheimAtlasFavs', JSON.stringify(favoriteSeeds));
   renderPins();
+  renderFavsList();
   showDetail({ seed, ox, oy }, idx < 0);
+}
+
+function updateFavNote(seed, note) {
+  const entry = favoriteSeeds.find(f => f.seed === seed);
+  if (!entry) return;
+  entry.note = note;
+  localStorage.setItem('valheimAtlasFavs', JSON.stringify(favoriteSeeds));
+  renderFavsList();
 }
 
 function renderFavsList() {
@@ -847,7 +687,8 @@ function renderFavsList() {
     div.className = `detail-box ${selectedSeedName === f.seed ? 'active' : ''}`;
     div.style.cursor = 'pointer';
     div.style.marginBottom = '6px';
-    div.innerHTML = `<div class="title" style="margin:0;">${f.seed} <span style="font-size:10px; color:var(--dim);">(${f.ox}, ${f.oy})</span></div>`;
+    const notePreview = f.note ? `<div class="note" style="margin-top:4px;">${escapeHtml(f.note)}</div>` : '';
+    div.innerHTML = `<div class="title" style="margin:0;">${f.seed} <span style="font-size:10px; color:var(--dim);">(${f.ox}, ${f.oy})</span></div>${notePreview}`;
     div.onclick = () => showDetail(f, true);
     favsList.appendChild(div);
   });
@@ -855,7 +696,6 @@ function renderFavsList() {
 
 // Initial setup
 updateTargetMarker();
-updateInclusionMarker();
 renderFavsList();
 </script>
 </body>
