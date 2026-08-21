@@ -176,6 +176,15 @@
     margin-left: -2px; margin-top: -2px; background: #3faab5; border-radius: 50%;
   }
   .status { font-family: var(--mono); font-size: 11px; color: var(--dim); min-height: 14px; }
+
+  /* Achievable Spawn-Center Region Overlay */
+  #achievableMask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+  #achievableMask div { position: absolute; background: rgba(0,0,0,0.55); }
+
+  .range-warning {
+    font-family: var(--mono); font-size: 10px; color: var(--danger);
+    line-height: 1.3; display: none;
+  }
 </style>
 </head>
 <body>
@@ -210,6 +219,7 @@
             <input type="number" id="ty" value="0">
           </div>
         </div>
+        <div class="range-warning" id="targetRangeWarning">⚠ Target is outside the achievable range (offsets must stay within ±10000). No seed can ever land there — adjust the target.</div>
         <div class="field-row">
           <div class="field">
             <label>RADIUS (UNITS)</label>
@@ -297,6 +307,12 @@
   <div id="stageOuter">
     <div id="stage">
       <img id="mapImg" src="map.webp" alt="Valheim Master Map">
+      <div id="achievableMask">
+        <div id="maskTop"></div>
+        <div id="maskBottom"></div>
+        <div id="maskLeft"></div>
+        <div id="maskRight"></div>
+      </div>
       <div id="targetMarker" class="target-marker" style="display:none;"></div>
       <div id="inclusionMarker" class="inclusion-marker"></div>
       <div id="pinsContainer"></div>
@@ -332,6 +348,44 @@ function stagePxToOffset(sX, sY) {
   const mX = sX / SCALE_FACTOR;
   const mY = sY / SCALE_FACTOR;
   return pxToOffset(mX, mY);
+}
+
+// ---- ACHIEVABLE SPAWN-CENTER REGION ----
+// offsetX/offsetY are capped at +/-10000, so a seed's center can only ever land
+// within this fixed rectangle on the map. Anything outside it is unreachable by
+// any seed, no matter how long the generator runs.
+const ACHIEVABLE_MIN_OFFSET = -10000;
+const ACHIEVABLE_MAX_OFFSET = 10000;
+
+// Corners in stage px (offsetToMasterPx is affine/independent per axis, so the
+// offset-space rectangle maps to an axis-aligned rectangle in pixel space).
+const [achLeftPx, achTopPx] = offsetToStagePx(ACHIEVABLE_MIN_OFFSET, ACHIEVABLE_MAX_OFFSET);
+const [achRightPx, achBottomPx] = offsetToStagePx(ACHIEVABLE_MAX_OFFSET, ACHIEVABLE_MIN_OFFSET);
+
+function isTargetAchievable(x, y) {
+  return x >= ACHIEVABLE_MIN_OFFSET && x <= ACHIEVABLE_MAX_OFFSET &&
+         y >= ACHIEVABLE_MIN_OFFSET && y <= ACHIEVABLE_MAX_OFFSET;
+}
+
+function renderAchievableMask() {
+  // Frame the achievable rect with four dimmed panels; the achievable middle
+  // itself is left untouched (full brightness), not the other way around.
+  const maskTop = document.getElementById('maskTop');
+  const maskBottom = document.getElementById('maskBottom');
+  const maskLeft = document.getElementById('maskLeft');
+  const maskRight = document.getElementById('maskRight');
+
+  maskTop.style.left = '0px'; maskTop.style.top = '0px';
+  maskTop.style.width = '100%'; maskTop.style.height = `${achTopPx}px`;
+
+  maskBottom.style.left = '0px'; maskBottom.style.top = `${achBottomPx}px`;
+  maskBottom.style.width = '100%'; maskBottom.style.height = `${BASE_SIZE - achBottomPx}px`;
+
+  maskLeft.style.left = '0px'; maskLeft.style.top = `${achTopPx}px`;
+  maskLeft.style.width = `${achLeftPx}px`; maskLeft.style.height = `${achBottomPx - achTopPx}px`;
+
+  maskRight.style.left = `${achRightPx}px`; maskRight.style.top = `${achTopPx}px`;
+  maskRight.style.width = `${BASE_SIZE - achRightPx}px`; maskRight.style.height = `${achBottomPx - achTopPx}px`;
 }
 
 // ---- MOUNTAIN LANDMARK PRESETS ----
@@ -492,6 +546,9 @@ const piyEl = document.getElementById('piy');
 const mountainPresetsEl = document.getElementById('mountainPresets');
 const landmarkDetailContainer = document.getElementById('landmarkDetailContainer');
 const showFavsToggle = document.getElementById('showFavsToggle');
+const targetRangeWarningEl = document.getElementById('targetRangeWarning');
+
+renderAchievableMask();
 
 // Click Mode Switcher
 function setClickMode(mode) {
@@ -597,6 +654,8 @@ function updateTargetMarker() {
   targetMarker.style.top = `${sY}px`;
   targetMarker.style.width = `${stageRad * 2}px`;
   targetMarker.style.height = `${stageRad * 2}px`;
+
+  targetRangeWarningEl.style.display = isTargetAchievable(tx, ty) ? 'none' : 'block';
 }
 
 function updateInclusionMarker() {
@@ -656,7 +715,14 @@ function runGeneration() {
   const ty = parseInt(tyEl.value, 10) || 0;
   const radius = Math.max(1, parseInt(radiusEl.value, 10) || 150);
   const wanted = Math.max(1, Math.min(10, parseInt(wantedEl.value, 10) || 5));
-  
+
+  if (!isTargetAchievable(tx, ty)) {
+    searching = false;
+    generateBtn.disabled = false;
+    statusEl.textContent = `Target (${tx}, ${ty}) is outside the achievable range (offsets must stay within ±10000) — no seed can ever land there. Adjust the target and try again.`;
+    return;
+  }
+
   const filterInclusion = pointFilterActiveEl.checked;
   const pix = parseInt(pixEl.value, 10) || 0;
   const piy = parseInt(piyEl.value, 10) || 0;
@@ -769,11 +835,11 @@ function showDetail(item, isFav = false) {
       
       <a href="${inspectorUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" 
          style="display:block; text-align:center; text-decoration:none; margin-top:8px;" 
-         title="Opens seed in wd40flyer's Valheim World Generator in a new tab">
-        Inspect on Valheim World Generator (by wd40flyer) ↗
+         title="Opens seed in wd40bomber7's Valheim World Generator in a new tab">
+        Inspect on Valheim World Generator (by wd40bomber7) ↗
       </a>
       <div class="note" style="text-align:center; margin-top:4px; font-size:9px;">
-        External tool created by wd40flyer. Opens in new tab.
+        External tool created by wd40bomber7. Opens in new tab.
       </div>
 
       <button class="btn btn-secondary" style="margin-top:8px;" onclick="toggleFav('${item.seed}', ${item.ox}, ${item.oy})">
