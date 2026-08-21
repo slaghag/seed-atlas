@@ -177,13 +177,16 @@
   }
   .status { font-family: var(--mono); font-size: 11px; color: var(--dim); min-height: 14px; }
 
-  /* Achievable Spawn-Center Region Overlay */
-  #achievableMask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
-  #achievableMask div { position: absolute; background: rgba(0,0,0,0.55); }
+  /* Achievable Spawn-Center Region Outline */
+  #achievableOutline {
+    position: absolute; border: 1px dashed var(--danger);
+    pointer-events: none; z-index: 2;
+  }
 
-  .range-warning {
-    font-family: var(--mono); font-size: 10px; color: var(--danger);
-    line-height: 1.3; display: none;
+  .clamp-warning {
+    font-family: var(--mono); font-size: 11px; color: var(--danger);
+    line-height: 1.4; padding: 10px 20px; border-top: 1px solid var(--panel-border);
+    display: none;
   }
 </style>
 </head>
@@ -209,17 +212,6 @@
     <div>
       <div class="section-title">Spawn Target Search</div>
       <div class="field-group">
-        <div class="field-row">
-          <div class="field">
-            <label>TARGET X</label>
-            <input type="number" id="tx" value="0">
-          </div>
-          <div class="field">
-            <label>TARGET Y</label>
-            <input type="number" id="ty" value="0">
-          </div>
-        </div>
-        <div class="range-warning" id="targetRangeWarning">⚠ Target is outside the achievable range (offsets must stay within ±10000). No seed can ever land there — adjust the target.</div>
         <div class="field-row">
           <div class="field">
             <label>RADIUS (UNITS)</label>
@@ -295,6 +287,7 @@
       <div id="favsList" class="field-group"></div>
     </div>
   </div>
+  <div class="clamp-warning" id="clampWarningEl">⚠ No spawn location can exist beyond this border — target moved to the nearest valid point.</div>
 </div>
 
 <div class="mapwrap" id="mapwrap">
@@ -307,12 +300,7 @@
   <div id="stageOuter">
     <div id="stage">
       <img id="mapImg" src="map.webp" alt="Valheim Master Map">
-      <div id="achievableMask">
-        <div id="maskTop"></div>
-        <div id="maskBottom"></div>
-        <div id="maskLeft"></div>
-        <div id="maskRight"></div>
-      </div>
+      <div id="achievableOutline"></div>
       <div id="targetMarker" class="target-marker" style="display:none;"></div>
       <div id="inclusionMarker" class="inclusion-marker"></div>
       <div id="pinsContainer"></div>
@@ -367,25 +355,22 @@ function isTargetAchievable(x, y) {
          y >= ACHIEVABLE_MIN_OFFSET && y <= ACHIEVABLE_MAX_OFFSET;
 }
 
-function renderAchievableMask() {
-  // Frame the achievable rect with four dimmed panels; the achievable middle
-  // itself is left untouched (full brightness), not the other way around.
-  const maskTop = document.getElementById('maskTop');
-  const maskBottom = document.getElementById('maskBottom');
-  const maskLeft = document.getElementById('maskLeft');
-  const maskRight = document.getElementById('maskRight');
+function clampToAchievable(x, y) {
+  return [
+    Math.max(ACHIEVABLE_MIN_OFFSET, Math.min(ACHIEVABLE_MAX_OFFSET, x)),
+    Math.max(ACHIEVABLE_MIN_OFFSET, Math.min(ACHIEVABLE_MAX_OFFSET, y))
+  ];
+}
 
-  maskTop.style.left = '0px'; maskTop.style.top = '0px';
-  maskTop.style.width = '100%'; maskTop.style.height = `${achTopPx}px`;
-
-  maskBottom.style.left = '0px'; maskBottom.style.top = `${achBottomPx}px`;
-  maskBottom.style.width = '100%'; maskBottom.style.height = `${BASE_SIZE - achBottomPx}px`;
-
-  maskLeft.style.left = '0px'; maskLeft.style.top = `${achTopPx}px`;
-  maskLeft.style.width = `${achLeftPx}px`; maskLeft.style.height = `${achBottomPx - achTopPx}px`;
-
-  maskRight.style.left = `${achRightPx}px`; maskRight.style.top = `${achTopPx}px`;
-  maskRight.style.width = `${BASE_SIZE - achRightPx}px`; maskRight.style.height = `${achBottomPx - achTopPx}px`;
+function renderAchievableOutline() {
+  // Trace a dashed outline around the achievable rect rather than dimming
+  // everything outside it — the rect itself never changes, so this only
+  // needs to run once at load.
+  const outlineEl = document.getElementById('achievableOutline');
+  outlineEl.style.left = `${achLeftPx}px`;
+  outlineEl.style.top = `${achTopPx}px`;
+  outlineEl.style.width = `${achRightPx - achLeftPx}px`;
+  outlineEl.style.height = `${achBottomPx - achTopPx}px`;
 }
 
 // ---- MOUNTAIN LANDMARK PRESETS ----
@@ -531,8 +516,8 @@ let selectedSeedName = null;
 const pinsContainer = document.getElementById('pinsContainer');
 const targetMarker = document.getElementById('targetMarker');
 const inclusionMarker = document.getElementById('inclusionMarker');
-const txEl = document.getElementById('tx');
-const tyEl = document.getElementById('ty');
+let currentTargetX = 0;
+let currentTargetY = 0;
 const radiusEl = document.getElementById('radius');
 const wantedEl = document.getElementById('wanted');
 const generateBtn = document.getElementById('generateBtn');
@@ -546,9 +531,9 @@ const piyEl = document.getElementById('piy');
 const mountainPresetsEl = document.getElementById('mountainPresets');
 const landmarkDetailContainer = document.getElementById('landmarkDetailContainer');
 const showFavsToggle = document.getElementById('showFavsToggle');
-const targetRangeWarningEl = document.getElementById('targetRangeWarning');
+const clampWarningEl = document.getElementById('clampWarningEl');
 
-renderAchievableMask();
+renderAchievableOutline();
 
 // Click Mode Switcher
 function setClickMode(mode) {
@@ -609,8 +594,11 @@ mapWrap.addEventListener('click', (e) => {
   const [ox, oy] = stagePxToOffset(clickX, clickY);
 
   if (activeClickMode === 'target') {
-    txEl.value = ox;
-    tyEl.value = oy;
+    const wasAchievable = isTargetAchievable(ox, oy);
+    const [cx, cy] = clampToAchievable(ox, oy);
+    currentTargetX = cx;
+    currentTargetY = cy;
+    clampWarningEl.style.display = wasAchievable ? 'none' : 'block';
     updateTargetMarker();
   } else {
     pointFilterActiveEl.checked = true;
@@ -643,10 +631,8 @@ function handleInclusionDrag(e) {
 }
 
 function updateTargetMarker() {
-  const tx = parseInt(txEl.value, 10) || 0;
-  const ty = parseInt(tyEl.value, 10) || 0;
   const rad = parseInt(radiusEl.value, 10) || 150;
-  const [sX, sY] = offsetToStagePx(tx, ty);
+  const [sX, sY] = offsetToStagePx(currentTargetX, currentTargetY);
   const stageRad = rad * 0.089734 * SCALE_FACTOR;
   
   targetMarker.style.display = 'block';
@@ -654,8 +640,6 @@ function updateTargetMarker() {
   targetMarker.style.top = `${sY}px`;
   targetMarker.style.width = `${stageRad * 2}px`;
   targetMarker.style.height = `${stageRad * 2}px`;
-
-  targetRangeWarningEl.style.display = isTargetAchievable(tx, ty) ? 'none' : 'block';
 }
 
 function updateInclusionMarker() {
@@ -672,8 +656,6 @@ function updateInclusionMarker() {
   inclusionMarker.style.top = `${sY}px`;
 }
 
-txEl.addEventListener('input', updateTargetMarker);
-tyEl.addEventListener('input', updateTargetMarker);
 radiusEl.addEventListener('input', updateTargetMarker);
 pixEl.addEventListener('input', () => {
   document.querySelectorAll('#mountainPresets .preset-btn').forEach(b => b.classList.remove('active'));
@@ -711,17 +693,10 @@ function runGeneration() {
   searching = true;
   generateBtn.disabled = true;
 
-  const tx = parseInt(txEl.value, 10) || 0;
-  const ty = parseInt(tyEl.value, 10) || 0;
+  const tx = currentTargetX;
+  const ty = currentTargetY;
   const radius = Math.max(1, parseInt(radiusEl.value, 10) || 150);
   const wanted = Math.max(1, Math.min(10, parseInt(wantedEl.value, 10) || 5));
-
-  if (!isTargetAchievable(tx, ty)) {
-    searching = false;
-    generateBtn.disabled = false;
-    statusEl.textContent = `Target (${tx}, ${ty}) is outside the achievable range (offsets must stay within ±10000) — no seed can ever land there. Adjust the target and try again.`;
-    return;
-  }
 
   const filterInclusion = pointFilterActiveEl.checked;
   const pix = parseInt(pixEl.value, 10) || 0;
