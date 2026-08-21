@@ -554,9 +554,9 @@ window.addEventListener('mouseup', () => {
 mapwrap.addEventListener('click', (e) => {
   if (dragMoved) { e.stopPropagation(); e.preventDefault(); return; }
   if (areaPlacementPending) {
-    const rect = mapwrap.getBoundingClientRect();
-    const scaledX = e.clientX - rect.left + mapwrap.scrollLeft;
-    const scaledY = e.clientY - rect.top + mapwrap.scrollTop;
+    const stageRect = stageOuter.getBoundingClientRect();
+    const scaledX = e.clientX - stageRect.left;
+    const scaledY = e.clientY - stageRect.top;
     areaCenterX = scaledX / currentScale;
     areaCenterY = scaledY / currentScale;
     areaFilterActive = true;
@@ -569,9 +569,9 @@ mapwrap.addEventListener('click', (e) => {
     renderPins();
   }
   if (pointPlacementPending) {
-    const rect = mapwrap.getBoundingClientRect();
-    const scaledX = e.clientX - rect.left + mapwrap.scrollLeft;
-    const scaledY = e.clientY - rect.top + mapwrap.scrollTop;
+    const stageRect = stageOuter.getBoundingClientRect();
+    const scaledX = e.clientX - stageRect.left;
+    const scaledY = e.clientY - stageRect.top;
     pointFilterX = scaledX / currentScale;
     pointFilterY = scaledY / currentScale;
     pointFilterActive = true;
