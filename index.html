@@ -264,7 +264,7 @@
       <img id="mapImg" src="map.webp" alt="Valheim Master Map">
       <div id="achievableOutline"></div>
       <div id="targetMarker" class="target-marker" style="display:none;">
-        <img src="pin.svg" class="target-marker-icon" alt="Spawn point">
+        <img id="targetMarkerIcon" src="pin.svg" class="target-marker-icon" alt="Spawn point">
       </div>
       <div id="worldBoundaryRing" class="world-boundary-ring" style="display:none;"></div>
       <div id="pinsContainer"></div>
@@ -496,6 +496,7 @@ let selectedSeedName = null;
 
 const pinsContainer = document.getElementById('pinsContainer');
 const targetMarker = document.getElementById('targetMarker');
+const targetMarkerIcon = document.getElementById('targetMarkerIcon');
 const worldBoundaryRing = document.getElementById('worldBoundaryRing');
 let currentTargetX = 0;
 let currentTargetY = 0;
@@ -533,6 +534,8 @@ function onModeChange() {
     wantedEl.value = MAYPOLE_CANDIDATE_TARGET;
     generateBtn.textContent = 'Find Candidate Seeds';
     statusEl.textContent = 'Click the map to set the point to check for a likely WoodFarm1 site.';
+    targetMarkerIcon.src = 'mp_pin.svg';
+    targetMarkerIcon.alt = 'Maypole search point';
   } else {
     searchSectionTitleEl.textContent = 'Spawn Target Search';
     radiusRowEl.style.display = '';
@@ -541,6 +544,8 @@ function onModeChange() {
     wantedEl.value = 5;
     generateBtn.textContent = 'Generate Seeds';
     statusEl.textContent = 'Click the map to set your spawn target.';
+    targetMarkerIcon.src = 'pin.svg';
+    targetMarkerIcon.alt = 'Spawn point';
   }
 
   exportBtn.style.display = 'none';
