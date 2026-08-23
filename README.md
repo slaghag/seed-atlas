@@ -27,7 +27,7 @@ Favorite seeds you like, with a note explaining why — that list is stored loca
 ## Status
 
 - Spawn Search: done, stable.
-- Maypole Search: functional pre-filter, not yet confirmed against real game data. Two pieces of it (forest-factor and terrain-flatness math) are built from standard textbook formulas rather than confirmed decompiled game code — flagged in `biome_port.js`'s comments. A separate Unity-based batch scanner (not part of this repo yet) is what actually confirms a candidate.
+- Maypole Search: functional pre-filter. All of its math — biome, height, forest factor, terrain flatness — is now confirmed against literal decompiled game code (not textbook approximations); the one permanently unrecoverable piece is `GetTerrainDelta`'s exact *sample locations* (Unity's native `insideUnitCircle`), which this port substitutes a fixed sample ring for, per design. Still a deterministic pre-filter, not a placement prediction — a match means "worth checking further," never "confirmed." A separate Unity-based batch scanner (not part of this repo yet) is what actually confirms a candidate.
 - Candidate export (for handing a shortlist to the Unity scanner) is basic — a plain seed list. The exact format the scanner's driver script expects hasn't been independently confirmed against this tool this session, so treat it as a starting point, not a guaranteed match.
 
 ## Credits
