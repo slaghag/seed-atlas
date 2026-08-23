@@ -185,22 +185,39 @@
   </div>
   
   <div class="sidebar-content">
+    <!-- Search Mode Toggle -->
+    <div>
+      <div class="section-title">Search Mode</div>
+      <div class="field-row" style="gap:6px; margin-bottom:10px;">
+        <label class="checkbox-label" style="flex:1; background:#090d0e; border:1px solid var(--panel-border); border-radius:4px; padding:8px; justify-content:center;">
+          <input type="radio" name="searchMode" id="modeSpawn" value="spawn" checked onchange="onModeChange()"> Spawn
+        </label>
+        <label class="checkbox-label" style="flex:1; background:#090d0e; border:1px solid var(--panel-border); border-radius:4px; padding:8px; justify-content:center;">
+          <input type="radio" name="searchMode" id="modeMaypole" value="maypole" onchange="onModeChange()"> Maypole
+        </label>
+      </div>
+      <div id="maypoleCaveat" class="note" style="display:none; background:#090d0e; border:1px solid var(--accent-dim); border-radius:4px; padding:8px; font-family:var(--mono); font-size:10px; color:var(--accent-dim); line-height:1.4; margin-bottom:12px;">
+        Experimental, probabilistic pre-filter. A "match" here means the clicked point ISN'T ruled out by WoodFarm1's known deterministic placement filters (biome, distance, altitude, forest, terrain flatness) — it does NOT mean a WoodFarm1 (or a Maypole) will actually be there. Real placement is a random dart-throw process this check can't simulate. Treat matches as seeds worth checking further, not confirmed Maypole sites — export them and run the Unity scanner for a real answer.
+      </div>
+    </div>
+
     <!-- Generator Target Search -->
     <div>
-      <div class="section-title">Spawn Target Search</div>
+      <div class="section-title" id="searchSectionTitle">Spawn Target Search</div>
       <div class="field-group">
-        <div class="field-row">
+        <div class="field-row" id="radiusRow">
           <div class="field">
             <label>RADIUS (UNITS)</label>
             <input type="number" id="radius" value="150">
           </div>
           <div class="field">
-            <label>COUNT (MAX 10)</label>
+            <label id="wantedLabel">COUNT (MAX 10)</label>
             <input type="number" id="wanted" value="5" max="10" min="1">
           </div>
         </div>
 
         <button class="btn" id="generateBtn" style="margin-top: 8px;">Generate Seeds</button>
+        <button class="btn btn-secondary" id="exportBtn" style="margin-top: 8px; display:none;">Export Candidates (.txt)</button>
         <div class="status" id="status">Click the map to set your spawn target.</div>
       </div>
     </div>
@@ -255,6 +272,7 @@
   </div>
 </div>
 
+<script src="biome_port.js"></script>
 <script>
 // ---- CORE CONSTANTS & CALIBRATION ----
 const BASE_SIZE = 1400;
@@ -491,6 +509,48 @@ const resultsList = document.getElementById('resultsList');
 const showFavsToggle = document.getElementById('showFavsToggle');
 const clampWarningEl = document.getElementById('clampWarningEl');
 
+// Maypole-search mode DOM refs (project_plan.md's "Maypole-search mode")
+const modeSpawnEl = document.getElementById('modeSpawn');
+const modeMaypoleEl = document.getElementById('modeMaypole');
+const maypoleCaveatEl = document.getElementById('maypoleCaveat');
+const searchSectionTitleEl = document.getElementById('searchSectionTitle');
+const radiusRowEl = document.getElementById('radiusRow');
+const wantedLabelEl = document.getElementById('wantedLabel');
+const exportBtn = document.getElementById('exportBtn');
+
+let searchMode = 'spawn'; // 'spawn' | 'maypole'
+const MAYPOLE_CANDIDATE_TARGET = 50; // project_plan.md Phase 1: "50 for now, thousands later"
+
+function onModeChange() {
+  searchMode = modeMaypoleEl.checked ? 'maypole' : 'spawn';
+  maypoleCaveatEl.style.display = searchMode === 'maypole' ? 'block' : 'none';
+
+  if (searchMode === 'maypole') {
+    searchSectionTitleEl.textContent = 'Maypole Target Search';
+    radiusRowEl.style.display = 'none'; // no radius concept - eligibility is pass/fail, not proximity
+    wantedLabelEl.textContent = 'CANDIDATES (TARGET)';
+    wantedEl.max = 500;
+    wantedEl.value = MAYPOLE_CANDIDATE_TARGET;
+    generateBtn.textContent = 'Find Candidate Seeds';
+    statusEl.textContent = 'Click the map to set the point to check for a likely WoodFarm1 site.';
+  } else {
+    searchSectionTitleEl.textContent = 'Spawn Target Search';
+    radiusRowEl.style.display = '';
+    wantedLabelEl.textContent = 'COUNT (MAX 10)';
+    wantedEl.max = 10;
+    wantedEl.value = 5;
+    generateBtn.textContent = 'Generate Seeds';
+    statusEl.textContent = 'Click the map to set your spawn target.';
+  }
+
+  exportBtn.style.display = 'none';
+  generatedSeeds = [];
+  selectedSeedName = null;
+  renderPins();
+  renderResultsList();
+  detailContainer.innerHTML = `<div class="detail-box" style="color: var(--dim);">Click a pin or seed to inspect details.</div>`;
+}
+
 renderAchievableOutline();
 
 // Map Stage Click Handler — clicking always sets the spawn target now that
@@ -536,21 +596,88 @@ function updateTargetMarker() {
 radiusEl.addEventListener('input', updateTargetMarker);
 
 // ---- NON-BLOCKING SEED GENERATION LOOP ----
+// Spawn-search mode: unchanged from before (proximity match on spawn offset).
+// Maypole-search mode: Stage 1 of project_plan.md's Maypole-search pipeline.
+//   For each random seed, convert the SAME clicked master-map point into
+//   that seed's own real-world coordinate space (wx = tx - offset0,
+//   wy = ty - offset1 -- the click's effective/master coordinate is
+//   seed-invariant since the master map's shape is; a real in-game world
+//   position (wx,wy) plots at (wx+offset0, wy+offset1) on that map, so
+//   solving for (wx,wy) given a fixed click point is just the inverse of
+//   that), then run the deterministic green-zone eligibility check there.
+// This is a "not excluded" filter, not a placement prediction -- see the
+// on-screen caveat and project_plan.md's own framing.
 let searching = false;
 function runGeneration() {
   if (searching) return;
   searching = true;
   generateBtn.disabled = true;
+  exportBtn.style.display = 'none';
 
   const tx = currentTargetX;
   const ty = currentTargetY;
-  const radius = Math.max(1, parseInt(radiusEl.value, 10) || 150);
-  const wanted = Math.max(1, Math.min(10, parseInt(wantedEl.value, 10) || 5));
-
-  const maxTries = 2_000_000;
   generatedSeeds = [];
   let tries = 0;
   const startTime = performance.now();
+
+  if (searchMode === 'maypole') {
+    // Yield here is genuinely, heavily location-dependent -- not a target
+    // to tune, a real property of the filter. At a fixed click point,
+    // offset0/offset1 vary per seed, so the real-world point actually
+    // tested (wx,wy = tx-offset0, ty-offset1) swings across a huge range
+    // (up to the full +/-10000 offset span on each axis) -- most random
+    // seeds simply don't land that point in WoodFarm1's narrow 500-2000m
+    // band at all, let alone with the right biome AND a flat-enough patch
+    // (terrainDelta<=4m proved the tightest filter in testing: only ~3-4%
+    // of correctly-biomed, correctly-distanced points pass it). Measured
+    // end-to-end yield across several arbitrary click points ranged from
+    // ~0.3% down to effectively 0% within a few hundred thousand tries --
+    // some locations may never produce 50 candidates in any reasonable
+    // budget. This is expected: try a different spot rather than assuming
+    // a stall means something's broken.
+    const maxTries = 5_000_000;
+    const wanted = Math.max(1, Math.min(500, parseInt(wantedEl.value, 10) || MAYPOLE_CANDIDATE_TARGET));
+
+    function maypoleChunk() {
+      const chunkStart = performance.now();
+      while (generatedSeeds.length < wanted && tries < maxTries && performance.now() - chunkStart < 16) {
+        tries++;
+        const s = randomSeedString(10);
+        const v = seedToWorldGenValues(s);
+        const wx = tx - v.offset0;
+        const wy = ty - v.offset1;
+        const elig = isGreenZoneEligible(wx, wy, v);
+        if (elig.eligible) {
+          generatedSeeds.push({ seed: s, ox: v.offset0, oy: v.offset1, wx, wy, elig });
+        }
+      }
+
+      statusEl.textContent = `Scanning... ${tries.toLocaleString()} seeds evaluated (${generatedSeeds.length}/${wanted} candidates)`;
+
+      if (generatedSeeds.length < wanted && tries < maxTries) {
+        requestAnimationFrame(maypoleChunk);
+      } else {
+        searching = false;
+        generateBtn.disabled = false;
+        if (generatedSeeds.length === 0) {
+          statusEl.textContent = `No candidates found after ${tries.toLocaleString()} seeds scanned in ${((performance.now()-startTime)/1000).toFixed(1)}s. This spot may just be a hard one -- try clicking somewhere else.`;
+        } else {
+          statusEl.textContent = `Done in ${((performance.now()-startTime)/1000).toFixed(2)}s. ${generatedSeeds.length} candidate seed(s) passed the green-zone check (of ${tries.toLocaleString()} scanned). Not confirmed Maypole sites -- export and run the Unity scanner to check for real.`;
+        }
+        exportBtn.style.display = generatedSeeds.length > 0 ? 'block' : 'none';
+        renderPins();
+        renderResultsList();
+      }
+    }
+    requestAnimationFrame(maypoleChunk);
+    return;
+  }
+
+  const maxTries = 2_000_000;
+
+  // ---- Spawn-search mode (existing, unchanged) ----
+  const radius = Math.max(1, parseInt(radiusEl.value, 10) || 150);
+  const wanted = Math.max(1, Math.min(10, parseInt(wantedEl.value, 10) || 5));
 
   function chunk() {
     const chunkStart = performance.now();
@@ -582,6 +709,39 @@ function runGeneration() {
 
 generateBtn.addEventListener('click', runGeneration);
 
+// ---- CANDIDATE EXPORT (Stage 2 handoff, project_plan.md) ----
+// project_plan.md describes the PowerShell driver as already accepting a
+// seed list (-SeedsFile) plus a single shared click point, computing
+// per-seed real-world targets itself (compute_targets.js). The exact file
+// shape that driver expects wasn't independently confirmed this session
+// (an earlier design draft had the CALLER pre-compute per-seed targetX/
+// targetZ into input.json directly, which is a different shape -- these
+// may have diverged since). Exporting the most literal reading of
+// "-SeedsFile plus a shared click point" here: a plain-text seed list
+// (one per line) plus the click point on the first line as a comment.
+// FLAG: confirm this against the actual driver script before relying on
+// it -- adjust the format here if it doesn't match.
+function exportCandidates() {
+  if (generatedSeeds.length === 0) return;
+  const lines = [
+    `# clickPoint: ${currentTargetX},${currentTargetY}`,
+    `# generated: ${new Date().toISOString()}`,
+    `# ${generatedSeeds.length} candidate seeds, green-zone eligibility check only -- not confirmed Maypole sites`,
+    ...generatedSeeds.map(item => item.seed),
+  ];
+  const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `maypole_candidates_${Date.now()}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+exportBtn.addEventListener('click', exportCandidates);
+
 // ---- PIN & DETAIL RENDERING ----
 function toggleFavsVisibility() {
   renderPins();
@@ -589,16 +749,25 @@ function toggleFavsVisibility() {
 
 function renderPins() {
   pinsContainer.innerHTML = '';
-  
-  generatedSeeds.forEach(item => {
-    const [sX, sY] = offsetToStagePx(item.ox, item.oy);
-    const pin = document.createElement('div');
-    pin.className = `pin ${selectedSeedName === item.seed ? 'active' : ''}`;
-    pin.style.left = `${sX}px`;
-    pin.style.top = `${sY}px`;
-    pin.onclick = () => showDetail(item);
-    pinsContainer.appendChild(pin);
-  });
+
+  // Maypole-mode candidates plot at each seed's own spawn offset (ox,oy),
+  // which is essentially random scatter unrelated to the actual green-zone
+  // point tested (that point is the SAME clicked spot, translated into each
+  // seed's own coordinate space -- it has no single meaningful shared pixel
+  // to plot). Pins here would be misleading, not informative, so they're
+  // skipped in maypole mode -- results live in the results list instead,
+  // and the target marker already shows the point being checked.
+  if (searchMode === 'spawn') {
+    generatedSeeds.forEach(item => {
+      const [sX, sY] = offsetToStagePx(item.ox, item.oy);
+      const pin = document.createElement('div');
+      pin.className = `pin ${selectedSeedName === item.seed ? 'active' : ''}`;
+      pin.style.left = `${sX}px`;
+      pin.style.top = `${sY}px`;
+      pin.onclick = () => showDetail(item);
+      pinsContainer.appendChild(pin);
+    });
+  }
 
   if (showFavsToggle.checked) {
     favoriteSeeds.forEach(item => {
@@ -618,19 +787,29 @@ function renderPins() {
 function renderResultsList() {
   resultsList.innerHTML = '';
   if (generatedSeeds.length === 0) {
-    resultsList.innerHTML = `<div style="font-family:var(--mono); font-size:11px; color:var(--dim);">No seeds generated yet.</div>`;
+    resultsList.innerHTML = `<div style="font-family:var(--mono); font-size:11px; color:var(--dim);">${searchMode === 'maypole' ? 'No candidate seeds found yet.' : 'No seeds generated yet.'}</div>`;
     return;
   }
   generatedSeeds.forEach(item => {
     const card = document.createElement('div');
     card.className = `result-card ${selectedSeedName === item.seed ? 'active' : ''}`;
-    card.innerHTML = `
-      <div>
-        <div style="font-weight:bold; color:var(--accent);">${item.seed}</div>
-        <div style="font-size:9px; color:var(--dim);">Off: (${item.ox}, ${item.oy})</div>
-      </div>
-      <div style="font-size:10px; color:var(--ink);">${item.dist ? item.dist.toFixed(1) + 'u' : ''}</div>
-    `;
+    if (searchMode === 'maypole') {
+      card.innerHTML = `
+        <div>
+          <div style="font-weight:bold; color:var(--accent);">${item.seed}</div>
+          <div style="font-size:9px; color:var(--dim);">Alt: ${item.elig.altitude.toFixed(0)}m · Forest: ${item.elig.forestFactor.toFixed(2)} · Delta: ${item.elig.terrainDelta.toFixed(1)}m</div>
+        </div>
+        <div style="font-size:10px; color:var(--accent);">✓</div>
+      `;
+    } else {
+      card.innerHTML = `
+        <div>
+          <div style="font-weight:bold; color:var(--accent);">${item.seed}</div>
+          <div style="font-size:9px; color:var(--dim);">Off: (${item.ox}, ${item.oy})</div>
+        </div>
+        <div style="font-size:10px; color:var(--ink);">${item.dist ? item.dist.toFixed(1) + 'u' : ''}</div>
+      `;
+    }
     card.onclick = () => showDetail(item);
     resultsList.appendChild(card);
   });
@@ -650,7 +829,28 @@ function showDetail(item, isFav = false) {
   const isSaved = favoriteSeeds.some(f => f.seed === item.seed);
   const savedEntry = favoriteSeeds.find(f => f.seed === item.seed);
   const noteValue = savedEntry && savedEntry.note ? savedEntry.note : '';
-  const inspectorUrl = `https://valheim-map.world/?seed=${encodeURIComponent(item.seed)}&offset=${item.ox}%2C${item.oy}&zoom=1.000&view=0&ver=0.221.10`;
+
+  // Maypole-mode candidates: center the inspector view on the real-world
+  // point that was actually tested (wx,wy) rather than the seed's spawn
+  // (ox,oy) -- that's the spot worth visually spot-checking. Falls back to
+  // spawn offset for saved favorites that predate this field, or for
+  // spawn-search-mode items, which don't have wx/wy at all.
+  const hasTestedPoint = typeof item.wx === 'number' && typeof item.wy === 'number';
+  const inspectOx = hasTestedPoint ? Math.round(item.wx) : item.ox;
+  const inspectOy = hasTestedPoint ? Math.round(item.wy) : item.oy;
+  const inspectorUrl = `https://valheim-map.world/?seed=${encodeURIComponent(item.seed)}&offset=${inspectOx}%2C${inspectOy}&zoom=1.000&view=0&ver=0.221.10`;
+
+  const eligRows = item.elig ? `
+      <div class="row">Real-world pt: <span>(${Math.round(item.wx)}, ${Math.round(item.wy)})</span></div>
+      <div class="row">Distance from center: <span>${item.elig.dist.toFixed(0)}m</span></div>
+      <div class="row">Altitude: <span>${item.elig.altitude.toFixed(1)}m</span></div>
+      <div class="row">Forest factor: <span>${item.elig.forestFactor.toFixed(3)}</span></div>
+      <div class="row">Terrain delta: <span>${item.elig.terrainDelta.toFixed(2)}m</span></div>
+  ` : `
+      <div class="row">OffsetX: <span>${item.ox}</span></div>
+      <div class="row">OffsetY: <span>${item.oy}</span></div>
+      <div class="row">Target Dist: <span>${item.dist ? item.dist.toFixed(1) : 'N/A'}</span></div>
+  `;
 
   detailContainer.innerHTML = `
     <div class="detail-box">
@@ -658,17 +858,15 @@ function showDetail(item, isFav = false) {
         <span>${item.seed}</span>
         <span class="fav-star ${isSaved ? 'active' : ''}" title="${isSaved ? 'Remove from favorites' : 'Save to favorites'}" onclick="toggleFav('${item.seed}', ${item.ox}, ${item.oy})">${isSaved ? '★' : '☆'}</span>
       </div>
-      <div class="row">OffsetX: <span>${item.ox}</span></div>
-      <div class="row">OffsetY: <span>${item.oy}</span></div>
-      <div class="row">Target Dist: <span>${item.dist ? item.dist.toFixed(1) : 'N/A'}</span></div>
-      
+      ${eligRows}
+
       <a href="${inspectorUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" 
          style="display:block; text-align:center; text-decoration:none; margin-top:8px;" 
          title="Opens seed in wd40bomber7's Valheim World Generator in a new tab">
         Inspect on Valheim World Generator (by wd40bomber7) ↗
       </a>
       <div class="note" style="text-align:center; margin-top:4px; font-size:9px;">
-        External tool created by wd40bomber7. Opens in new tab.
+        External tool created by wd40bomber7. Opens in new tab.${item.elig ? ' Centered on the tested point, not spawn.' : ''}
       </div>
 
       ${isSaved ? `
