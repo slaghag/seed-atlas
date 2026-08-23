@@ -1,19 +1,3 @@
-# Valheim Seed Atlas
-
-An interactive map and seed generator that calculates world shifts, maps spawn offsets, and filters Valheim seeds by target proximity and landmark inclusion.
-
-**Live Tool:** [https://slaghag.github.io/seed-atlas/](https://slaghag.github.io/seed-atlas/)
-
----
-
-## Features
-
-* **Target & Inclusion Pins**: Set target spawn locations and drag inclusion pins across the map canvas to test landmark safety.
-* **Offline Seed Generator**: Fast, client-side seed generator running directly in the browser.
-* **Landmark Presets**: Quick-select presets for notable mountain peaks (*Polaris*, *Hook*, *Thorn*).
-* **Sidebar Results & Favorites**: Inspect seeds cleanly from a scrollable list and bookmark candidates with customizable map visibility.
-
----
 
 ## Attribution & Credits
 
