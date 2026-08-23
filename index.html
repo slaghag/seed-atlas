@@ -153,9 +153,9 @@
     pointer-events: none; transform: translate(-50%, -50%); z-index: 4;
     background: rgba(201, 162, 75, 0.05);
   }
-  .target-marker-icon {
-    position: absolute; top: 50%; left: 50%; width: 22px; height: 22px;
-    transform: translate(-50%, -50%); pointer-events: none;
+  .mode-icon {
+    width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;
+    position: relative; top: -1px;
   }
   .world-boundary-ring {
     position: absolute; border: 2px dashed #4ba2c9; border-radius: 50%;
@@ -190,10 +190,10 @@
       <div class="section-title">Search Mode</div>
       <div class="field-row" style="gap:6px; margin-bottom:10px;">
         <label class="checkbox-label" style="flex:1; background:#090d0e; border:1px solid var(--panel-border); border-radius:4px; padding:8px; justify-content:center;">
-          <input type="radio" name="searchMode" id="modeSpawn" value="spawn" checked onchange="onModeChange()"> Spawn
+          <input type="radio" name="searchMode" id="modeSpawn" value="spawn" checked onchange="onModeChange()"> <img src="pin.svg" class="mode-icon" alt=""> Spawn
         </label>
         <label class="checkbox-label" style="flex:1; background:#090d0e; border:1px solid var(--panel-border); border-radius:4px; padding:8px; justify-content:center;">
-          <input type="radio" name="searchMode" id="modeMaypole" value="maypole" onchange="onModeChange()"> Maypole
+          <input type="radio" name="searchMode" id="modeMaypole" value="maypole" onchange="onModeChange()"> <img src="mp_pin.svg" class="mode-icon" alt=""> Maypole
         </label>
       </div>
       <div id="maypoleCaveat" class="note" style="display:none; background:#090d0e; border:1px solid var(--accent-dim); border-radius:4px; padding:8px; font-family:var(--mono); font-size:10px; color:var(--accent-dim); line-height:1.4; margin-bottom:12px;">
@@ -263,9 +263,7 @@
     <div id="stage">
       <img id="mapImg" src="map.webp" alt="Valheim Master Map">
       <div id="achievableOutline"></div>
-      <div id="targetMarker" class="target-marker" style="display:none;">
-        <img id="targetMarkerIcon" src="pin.svg" class="target-marker-icon" alt="Spawn point">
-      </div>
+      <div id="targetMarker" class="target-marker" style="display:none;"></div>
       <div id="worldBoundaryRing" class="world-boundary-ring" style="display:none;"></div>
       <div id="pinsContainer"></div>
     </div>
@@ -496,7 +494,6 @@ let selectedSeedName = null;
 
 const pinsContainer = document.getElementById('pinsContainer');
 const targetMarker = document.getElementById('targetMarker');
-const targetMarkerIcon = document.getElementById('targetMarkerIcon');
 const worldBoundaryRing = document.getElementById('worldBoundaryRing');
 let currentTargetX = 0;
 let currentTargetY = 0;
@@ -534,8 +531,6 @@ function onModeChange() {
     wantedEl.value = MAYPOLE_CANDIDATE_TARGET;
     generateBtn.textContent = 'Find Candidate Seeds';
     statusEl.textContent = 'Click the map to set the point to check for a likely WoodFarm1 site.';
-    targetMarkerIcon.src = 'mp_pin.svg';
-    targetMarkerIcon.alt = 'Maypole search point';
   } else {
     searchSectionTitleEl.textContent = 'Spawn Target Search';
     radiusRowEl.style.display = '';
@@ -544,8 +539,6 @@ function onModeChange() {
     wantedEl.value = 5;
     generateBtn.textContent = 'Generate Seeds';
     statusEl.textContent = 'Click the map to set your spawn target.';
-    targetMarkerIcon.src = 'pin.svg';
-    targetMarkerIcon.alt = 'Spawn point';
   }
 
   exportBtn.style.display = 'none';
