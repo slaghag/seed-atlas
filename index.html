@@ -433,11 +433,35 @@ function makeXorShift(seed) {
 }
 
 function rangeOffset(u) { return -10000 + (u % 20000); }
+// Random.Range(int.MinValue, int.MaxValue): the full signed 32-bit space,
+// so a raw xorshift draw just gets reinterpreted as signed - no modulo needed.
+function fullRangeSigned(u) { return toI32(u); }
 
-function seedToOffset(seedStr) {
+// Draws the full WorldGenerator constructor PRNG sequence, in the confirmed
+// exact order (re-verified against the decompiled constructor):
+//   offset0, offset1, offset2, offset3, riverSeed, streamSeed, offset4
+// offset2/offset3/riverSeed/streamSeed aren't consumed by anything yet
+// (reserved for the biome/height port), but they MUST still be drawn here,
+// in this order, or every draw after them - including offset4 - desyncs
+// from the real game's stream.
+function seedToWorldGenValues(seedStr) {
   const h = getStableHashCode(seedStr);
   const next = makeXorShift(h);
-  return [rangeOffset(next()), rangeOffset(next())];
+  const offset0 = rangeOffset(next());
+  const offset1 = rangeOffset(next());
+  const offset2 = rangeOffset(next());
+  const offset3 = rangeOffset(next());
+  const riverSeed = fullRangeSigned(next());
+  const streamSeed = fullRangeSigned(next());
+  const offset4 = rangeOffset(next());
+  return { offset0, offset1, offset2, offset3, riverSeed, streamSeed, offset4 };
+}
+
+// Existing callers only need the map X/Y offsets - keep this signature so
+// runGeneration() and everything else needs zero changes.
+function seedToOffset(seedStr) {
+  const v = seedToWorldGenValues(seedStr);
+  return [v.offset0, v.offset1];
 }
 
 function randomSeedString(len = 10) {
