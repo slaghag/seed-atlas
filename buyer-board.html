@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eagle Co. // Buyer Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0a1220; --panel:#101c30; --panel-raised:#16273f;
+    --border:#213a58; --border-bright:#345880;
+    --text:#eef2f7; --text-dim:#8ba0ba;
+    --amber:#ffffff; --orange:#d4af37; --orange-dim:#a3841f;
+    --green:#4ade80; --red:#ff5c5c;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--void); color:var(--text); font-family:'Inter',sans-serif; font-size:14px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  h1,h2,.eyebrow,th{font-family:'Rajdhani',sans-serif; letter-spacing:.03em;}
+  header{padding:18px 22px 16px; border-bottom:2px solid var(--orange); box-shadow:0 4px 0 -2px var(--void), 0 5px 0 -2px rgba(255,255,255,.35); background:linear-gradient(180deg,#0d1a2c,#0a1220);}
+  header h1{margin:0; font-size:22px; font-weight:700; text-transform:uppercase;}
+  header h1 span{color:var(--orange);}
+  header .sub{color:var(--text-dim); font-size:11px; text-transform:uppercase; letter-spacing:.14em; margin-top:2px;}
+  main{padding:22px; max-width:960px; margin:0 auto;}
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:18px; margin-bottom:16px;}
+  .panel-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;}
+  .panel-head h2{margin:0; font-size:17px; text-transform:uppercase;}
+  .eyebrow{font-size:11px; color:var(--orange); text-transform:uppercase; letter-spacing:.14em;}
+  .muted{color:var(--text-dim);}
+  .pill{display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:700; text-transform:uppercase;}
+  .pill.ok{background:rgba(74,222,128,.15); color:var(--green);}
+  .pill.warn{background:rgba(212,175,55,.15); color:var(--orange);}
+  table{width:100%; border-collapse:collapse; margin-top:8px;}
+  th{text-align:left; font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; padding:6px 8px; border-bottom:1px solid var(--border);}
+  td{padding:8px; border-bottom:1px solid var(--border); vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  a.link{color:var(--orange); text-decoration:none; font-weight:600;}
+  a.link:hover{text-decoration:underline;}
+  .empty{color:var(--text-dim); font-style:italic; text-align:center; padding:26px 0;}
+  .loader{display:inline-block; width:14px; height:14px; border:2px solid var(--border-bright); border-top-color:var(--orange); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .refresh-note{font-size:11px; color:var(--text-dim); margin-top:14px; text-align:right;}
+  .btn{background:var(--panel-raised); border:1px solid var(--border-bright); color:var(--text); padding:7px 14px; border-radius:4px; cursor:pointer; font-size:13px; font-weight:600; text-transform:uppercase; font-family:'Rajdhani',sans-serif;}
+  .btn:hover{border-color:var(--orange); color:var(--orange);}
+</style>
+</head>
+<body>
+<header>
+  <h1>Eagle Co.<span> // </span>Buyer Board</h1>
+  <div class="sub">Current material needs &middot; live UEX prices</div>
+</header>
+<main id="app">
+  <div class="panel"><div class="empty"><span class="loader"></span> Loading purchase order&hellip;</div></div>
+</main>
+
+<script>
+const API_BASE = 'https://api.uexcorp.uk/2.0';
+
+// Set this once to your repo's raw purchase-order.json path. A ?src=<url> query
+// param overrides this for one-off testing without editing the file.
+const DEFAULT_SOURCE = 'https://raw.githubusercontent.com/slaghag/slag-tools/main/data/purchase-order.json';
+
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtNum(n){ return Number(n||0).toLocaleString(undefined,{maximumFractionDigits:3}); }
+function fmtMoney(n){ return Number(n||0).toLocaleString(undefined,{maximumFractionDigits:0}); }
+
+function unitMultiplier(listingUnit, unitBasis){
+  const u = (listingUnit||'').toLowerCase();
+  if(unitBasis==='piece'){ return (u==='unit'||u==='un') ? 1 : null; }
+  if(u==='scu') return 1;
+  if(u==='unit'||u==='un') return 1;
+  if(u==='cscu') return 0.01;
+  return null;
+}
+
+// UEX's own coarse 8-tier bucketing for marketplace_prices_averages, confirmed via
+// live testing: Q0, Q1-499, Q500-599, Q600-699, Q700-799, Q800-899, Q900-949, Q950-1000
+function qualityToTier(q){
+  q = Number(q)||0;
+  if(q<=0) return 0;
+  if(q<500) return 1;
+  if(q<600) return 2;
+  if(q<700) return 3;
+  if(q<800) return 4;
+  if(q<900) return 5;
+  if(q<950) return 6;
+  return 7;
+}
+
+function marketplaceHomeUrl(item){
+  const params = new URLSearchParams({
+    search: item.name, mode:'list', operation:'sell', quality_start: item.quality
+  });
+  if(item.idCategory) params.set('id_category', item.idCategory);
+  return `https://uexcorp.space/marketplace/home/?${params.toString()}`;
+}
+
+async function fetchAveragePrice(idItem, quality){
+  const tier = qualityToTier(quality);
+  const res = await fetch(`${API_BASE}/marketplace_prices_averages?id_item=${idItem}&quality_tier=${tier}&operation=sell`);
+  const json = await res.json();
+  if(json.status !== 'ok' || !json.data || !json.data.length) return null;
+  const d = json.data[0];
+  return { price: Number(d.price_avg)||0, unit: d.unit||'unit', listingsCount: Number(d.listings_count)||0 };
+}
+
+async function fetchTopListings(idItem, minQuality, unitBasis, count){
+  const res = await fetch(`${API_BASE}/marketplace_listings?id_item=${idItem}&operation=sell`);
+  const json = await res.json();
+  if(json.status !== 'ok') throw new Error(json.message||'UEX API error');
+  const now = Date.now()/1000;
+  return json.data
+    .filter(d => !d.is_sold_out && (!d.date_expiration || d.date_expiration > now) && Number(d.quality)>=minQuality)
+    .map(d=>{
+      const mult = unitMultiplier(d.unit, unitBasis);
+      return {
+        price:Number(d.price)||0, unit:d.unit||'unit', quality:Number(d.quality)||0,
+        location:d.location||'', seller:d.user_username||'', inStock:d.in_stock!=null?Number(d.in_stock):null,
+        link:`https://uexcorp.space/marketplace/item/info/${d.slug}`,
+        normPrice: mult!==null ? (Number(d.price)||0)/mult : null
+      };
+    })
+    .filter(l=>l.normPrice!==null)
+    .sort((a,b)=>a.normPrice-b.normPrice)
+    .slice(0, count||3);
+}
+
+function renderMaterialCard(item, listings, err, avg){
+  const basisLabel = (item.unitBasis==='piece') ? 'piece' : 'SCU';
+  let body;
+  if(err){
+    body = `<div class="empty">Couldn't load live prices for this item right now.</div>`;
+  } else if(!listings.length){
+    body = `<div class="empty">No qualifying listings found at Q${item.quality}+ right now.</div>`;
+  } else {
+    body = `<table>
+      <thead><tr><th>Price</th><th>Quality</th><th>Stock</th><th>Seller</th><th>Location</th><th></th></tr></thead>
+      <tbody>${listings.map(l=>`
+        <tr>
+          <td class="mono">${fmtMoney(l.price)} aUEC/${esc(l.unit)}</td>
+          <td class="mono">Q${l.quality}</td>
+          <td class="mono">${l.inStock!=null?fmtNum(l.inStock):'&mdash;'}</td>
+          <td>${esc(l.seller||'&mdash;')}</td>
+          <td>${esc(l.location||'&mdash;')}</td>
+          <td><a class="link" href="${esc(l.link)}" target="_blank" rel="noopener">Buy &rarr;</a></td>
+        </tr>`).join('')}</tbody>
+    </table>`;
+  }
+  const nameHtml = item.idItem
+    ? `<a class="link" href="${esc(marketplaceHomeUrl(item))}" target="_blank" rel="noopener" title="See all listings for this material at this quality or better">${esc(item.name)}</a>`
+    : esc(item.name);
+  const avgHtml = avg
+    ? `<span class="muted mono" style="font-size:12px; margin-left:10px">avg ${fmtMoney(avg.price)} aUEC/${esc(avg.unit)} <span class="${avg.listingsCount<3?'pill warn':''}" style="font-size:10px">(${avg.listingsCount} listing${avg.listingsCount===1?'':'s'})</span></span>`
+    : '';
+  return `
+  <div class="panel">
+    <div class="panel-head">
+      <h2>${nameHtml}${avgHtml}</h2>
+      <span class="pill ${item.qty>0?'warn':'ok'}">need ${fmtNum(item.qty)} ${basisLabel} &middot; &ge;Q${item.quality}</span>
+    </div>
+    ${item.note ? `<div class="muted" style="font-size:12px; margin-bottom:6px">${esc(item.note)}</div>` : ''}
+    ${!item.idItem ? '<div class="empty">No UEX catalog link for this material.</div>' : body}
+  </div>`;
+}
+
+async function main(){
+  const params = new URLSearchParams(location.search);
+  const src = params.get('src') || DEFAULT_SOURCE;
+  const app = document.getElementById('app');
+
+  let order;
+  try{
+    const res = await fetch(src + (src.includes('?')?'&':'?') + '_=' + Date.now());
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    order = await res.json();
+  } catch(e){
+    app.innerHTML = `<div class="panel"><div class="empty">Couldn't load the purchase order from<br><span class="mono">${esc(src)}</span><br>${esc(e.message)}</div></div>`;
+    return;
+  }
+
+  if(!Array.isArray(order) || !order.length){
+    app.innerHTML = `<div class="panel"><div class="empty">No open needs right now &mdash; nothing queued.</div></div>`;
+    return;
+  }
+
+  app.innerHTML = order.map(item=>`<div id="item-${item.materialId}">${renderMaterialCard(item, [], false)}</div>`).join('')
+    + `<div class="refresh-note">Loaded ${new Date().toLocaleString()} &middot; refresh the page for updated prices</div>`;
+
+  // now fetch real listings for each item with a UEX link, replacing the placeholder card
+  await Promise.all(order.map(async item=>{
+    if(!item.idItem) return;
+    const holder = document.getElementById('item-'+item.materialId);
+    try{
+      const [listings, avg] = await Promise.all([
+        fetchTopListings(item.idItem, item.quality, item.unitBasis, 3),
+        fetchAveragePrice(item.idItem, item.quality).catch(e=>{ console.error('average price fetch failed', e); return null; })
+      ]);
+      holder.innerHTML = renderMaterialCard(item, listings, false, avg);
+    } catch(e){
+      holder.innerHTML = renderMaterialCard(item, [], true);
+    }
+  }));
+}
+
+main();
+</script>
+</body>
+</html>

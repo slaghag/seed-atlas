@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QM // Catalog Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0a1220; --panel:#101c30; --panel-raised:#16273f;
+    --border:#213a58; --border-bright:#345880;
+    --text:#eef2f7; --text-dim:#8ba0ba;
+    --amber:#ffffff; --orange:#d4af37; --orange-dim:#a3841f;
+    --green:#4ade80; --red:#ff5c5c;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--void); color:var(--text); font-family:'Inter',sans-serif; font-size:14px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  h1,h2,.eyebrow,th,.btn{font-family:'Rajdhani',sans-serif; letter-spacing:.03em;}
+  header{padding:16px 22px 14px; border-bottom:2px solid var(--orange); box-shadow:0 4px 0 -2px var(--void), 0 5px 0 -2px rgba(255,255,255,.35); background:linear-gradient(180deg,#0d1a2c,#0a1220);}
+  header h1{margin:0; font-size:22px; font-weight:700; text-transform:uppercase;}
+  header h1 span{color:var(--orange);}
+  header .sub{color:var(--text-dim); font-size:11px; text-transform:uppercase; letter-spacing:.14em; margin-top:2px;}
+  main{padding:22px; max-width:1100px; margin:0 auto;}
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:18px; margin-bottom:18px;}
+  .panel-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:10px; flex-wrap:wrap;}
+  .panel-head h2{margin:0; font-size:16px; text-transform:uppercase;}
+  .eyebrow{font-size:11px; color:var(--orange); text-transform:uppercase; letter-spacing:.14em; margin-bottom:4px;}
+  .btn{background:var(--panel-raised); border:1px solid var(--border-bright); color:var(--text); padding:7px 14px; border-radius:4px; cursor:pointer; font-size:13px; font-weight:600; text-transform:uppercase;}
+  .btn:hover{border-color:var(--orange); color:var(--orange);}
+  .btn.primary{background:var(--orange); border-color:var(--orange); color:#0c0900;}
+  .btn.primary:hover{background:#e6c257; border-color:#e6c257; color:#0c0900;}
+  .btn.danger{border-color:var(--red); color:var(--red); background:transparent;}
+  .btn.danger:hover{background:var(--red); color:#1a0000;}
+  .btn.small{padding:4px 9px; font-size:11px;}
+  .btn:disabled{opacity:.35; cursor:not-allowed;}
+  input,select{background:var(--void); border:1px solid var(--border-bright); color:var(--text); padding:7px 9px; border-radius:4px; font-family:'JetBrains Mono',monospace; font-size:13px;}
+  input:focus,select:focus{outline:none; border-color:var(--orange);}
+  label.f{display:flex; flex-direction:column; gap:4px; font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em;}
+  table{width:100%; border-collapse:collapse;}
+  th{text-align:left; font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; padding:8px 10px; border-bottom:1px solid var(--border);}
+  td{padding:10px; border-bottom:1px solid var(--border); vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  .empty{color:var(--text-dim); font-style:italic; padding:16px 0; text-align:center;}
+  .row-flex{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;}
+  .muted{color:var(--text-dim);}
+  .pill{display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:700; text-transform:uppercase;}
+  .pill.warn{background:rgba(212,175,55,.15); color:var(--orange);}
+  .pill.ok{background:rgba(74,222,128,.15); color:var(--green);}
+  .divider{border:none; border-top:1px solid var(--border); margin:14px 0;}
+  .search-results{position:relative;}
+  .search-results-list{position:absolute; top:2px; left:0; right:0; background:var(--panel-raised); border:1px solid var(--border-bright); border-radius:0 0 4px 4px; max-height:220px; overflow-y:auto; z-index:20;}
+  .search-results-list div{padding:8px 10px; cursor:pointer; font-size:13px;}
+  .search-results-list div:hover{background:var(--void); color:var(--orange);}
+  .loader{display:inline-block; width:12px; height:12px; border:2px solid var(--border-bright); border-top-color:var(--orange); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  a.link{color:var(--orange); text-decoration:none;}
+  a.link:hover{text-decoration:underline;}
+</style>
+</head>
+<body>
+<header>
+  <h1>QM<span>://</span>CATALOG ADMIN</h1>
+  <div class="sub">Curate materials &amp; craftables &middot; the only tool that talks to the APIs</div>
+</header>
+<main id="app"></main>
+
+<script>
+const UEX_API_BASE = 'https://api.uexcorp.uk/2.0';
+const SCUNPACKED_RESOURCES_URL = 'https://raw.githubusercontent.com/StarCitizenWiki/scunpacked-data/master/resources/resources.json';
+const WIKI_API_BASE = 'https://api.star-citizen.wiki/api';
+const DEFAULT_CATEGORIES = [{id:36, label:'Commodities'}, {id:87, label:'Harvestables'}];
+const CATALOG_TTL_MS = 24*60*60*1000;
+const BP_KEYMAP_TTL_MS = 24*60*60*1000;
+
+let materials = [];   // {id, idItem, name, unitBasis, qualityBands, qualityBandsFetchedAt}
+let craftables = [];  // {id, name, category, blueprintSlug, ingredients, ingredientsFetchedAt}
+let categories = DEFAULT_CATEGORIES.slice();
+let itemCatalog = {};
+let blueprintKeyMapState = {map:{}, fetchedAt:0};
+let loadingCategoryItems = false;
+let loadingQuality = new Set();
+let loadingIngredients = new Set();
+let addMaterialSearchQuery = '';
+let bulkBandsDraft = '';
+let bulkBandsResult = null;
+let loadUrls = {materials:'', craftables:''};
+let scmdbBusy = null; // {stage, loaded, total} while running an import
+let scmdbResult = null;
+
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2));
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function timeAgo(ts){ if(!ts) return 'never'; const s=Math.floor((Date.now()-ts)/1000); if(s<60)return s+'s ago'; if(s<3600)return Math.floor(s/60)+'m ago'; if(s<86400)return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago'; }
+const sleep = ms => new Promise(r=>setTimeout(r, ms));
+
+/* ---------------- persistence (working draft only -- the real source of truth is the exported JSON) ---------------- */
+async function getKey(key, fallback){ try{ const r = await window.storage.get(key, false); return r ? JSON.parse(r.value) : fallback; }catch(e){ return fallback; } }
+async function saveKey(key, value){ try{ await window.storage.set(key, JSON.stringify(value), false); }catch(e){ console.error('save failed', key, e); } }
+const saveMaterials = () => saveKey('ca-materials', materials);
+const saveCraftables = () => saveKey('ca-craftables', craftables);
+const saveCategories = () => saveKey('ca-categories', categories);
+const saveItemCatalog = () => saveKey('ca-itemcatalog', itemCatalog);
+const saveKeyMap = () => saveKey('ca-bpkeymap', blueprintKeyMapState);
+
+async function loadAll(){
+  materials = await getKey('ca-materials', []);
+  craftables = await getKey('ca-craftables', []);
+  categories = await getKey('ca-categories', DEFAULT_CATEGORIES.slice());
+  itemCatalog = await getKey('ca-itemcatalog', {});
+  blueprintKeyMapState = await getKey('ca-bpkeymap', {map:{}, fetchedAt:0});
+}
+
+/* ---------------- UEX: item catalog search ---------------- */
+async function uexGet(path, params){
+  const qs = new URLSearchParams(params||{}).toString();
+  const res = await fetch(`${UEX_API_BASE}${path}${qs?'?'+qs:''}`);
+  const json = await res.json();
+  if(json.status!=='ok') throw new Error(json.message||'UEX API error');
+  return json.data;
+}
+async function ensureCategoryLoaded(idCategory, force){
+  const cached = itemCatalog[idCategory];
+  if(!force && cached && (Date.now()-cached.fetchedAt)<CATALOG_TTL_MS) return cached.items;
+  const data = await uexGet('/items', {id_category:idCategory});
+  const items = data.map(d=>({idItem:d.id, name:d.name, idCategory}));
+  itemCatalog[idCategory] = {items, fetchedAt:Date.now()};
+  saveItemCatalog();
+  return items;
+}
+async function ensureAllCategoriesLoaded(force){
+  loadingCategoryItems = true; render();
+  await Promise.all(categories.map(c=>ensureCategoryLoaded(c.id, force).catch(e=>{console.error(e); return [];})));
+  loadingCategoryItems = false; render();
+}
+function allCatalogItems(){
+  const out = [];
+  categories.forEach(c=>{ const cached=itemCatalog[c.id]; if(cached) cached.items.forEach(i=>out.push(i)); });
+  return out;
+}
+function searchCatalog(q){
+  if(!q||q.length<2) return [];
+  const n=q.toLowerCase();
+  return allCatalogItems().filter(i=>i.name.toLowerCase().includes(n)).slice(0,15);
+}
+
+/* ---------------- Game-data quality bands (authoritative -- from scunpacked-data) ---------------- */
+let scunpackedResourcesCache = null; // in-memory only: ~9.5MB, well over window.storage's 5MB cap, so this is refetched once per session rather than persisted
+let loadingScunpackedResources = false;
+
+async function ensureScunpackedResourcesLoaded(force){
+  if(scunpackedResourcesCache && !force) return scunpackedResourcesCache;
+  loadingScunpackedResources = true; render();
+  try{
+    const res = await fetch(SCUNPACKED_RESOURCES_URL);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    scunpackedResourcesCache = await res.json();
+  } catch(e){
+    console.error('scunpacked-data resources.json fetch failed', e);
+    scunpackedResourcesCache = null;
+  }
+  loadingScunpackedResources = false; render();
+  return scunpackedResourcesCache;
+}
+
+// Recursively walk the game-data structure collecting resource-quantization entries
+// whose Key/Name matches the search term. Same logic validated in data-explorer.html.
+function findResourceEntries(node, term, results, seen){
+  if(node===null || typeof node!=='object') return;
+  if(Array.isArray(node)){ node.forEach(child=>findResourceEntries(child, term, results, seen)); return; }
+  const key = (node.Key||''), name = (node.Name||'');
+  if((key.toLowerCase().includes(term) || name.toLowerCase().includes(term)) && Array.isArray(node.QualityQuantization)){
+    const range = node.QualityRange || {};
+    const sig = `${range.BaseMin}-${range.BaseMax}:${node.QualityQuantization.join(',')}`;
+    if(!seen.has(sig)){ seen.add(sig); results.push({key, name, quantization: node.QualityQuantization}); }
+  }
+  Object.values(node).forEach(v=>findResourceEntries(v, term, results, seen));
+}
+
+function bandsFromGameData(materialName){
+  if(!scunpackedResourcesCache) return null;
+  const results = [];
+  findResourceEntries(scunpackedResourcesCache, materialName.toLowerCase(), results, new Set());
+  if(!results.length) return null;
+  return [...new Set(results.flatMap(r=>r.quantization))].sort((a,b)=>a-b);
+}
+
+/* ---------------- quality band sampling: game data only, no live UEX fallback (see refreshQualityBands) ---------------- */
+async function refreshQualityBands(materialId){
+  const m = materials.find(x=>x.id===materialId);
+  if(!m) return;
+  loadingQuality.add(materialId); render();
+  try{
+    await ensureScunpackedResourcesLoaded(false);
+    const gameDataBands = bandsFromGameData(m.name);
+    if(gameDataBands && gameDataBands.length){
+      m.qualityBands = gameDataBands;
+      m.qualityBandsSource = 'gamedata';
+      m.qualityBandsFetchedAt = Date.now();
+      await saveMaterials();
+    } else {
+      alert(`No match found in game data for "${m.name}". Try enter bands manually or via bulk-paste instead -- there's no live-market fallback here on purpose, since listings can include non-craftable or bogus quality values that shouldn't end up in a fixed reference file.`);
+    }
+  } catch(e){
+    console.error('quality band sample failed', e);
+    alert('Could not load game data: '+e.message);
+  }
+  loadingQuality.delete(materialId); render();
+}
+
+/* ---------------- Wiki API: blueprint ingredient baking ---------------- */
+async function bakeIngredients(craftableId){
+  const c = craftables.find(x=>x.id===craftableId);
+  if(!c || !c.blueprintSlug) return;
+  loadingIngredients.add(craftableId); render();
+  try{
+    const res = await fetch(`${WIKI_API_BASE}/blueprints/${encodeURIComponent(c.blueprintSlug)}`);
+    const json = await res.json();
+    const d = json.data;
+    const aspects = d.aspects || d.aspect_groups || [];
+    c.ingredients = (d.ingredients||[]).map((ing,i)=>{
+      const aspect = Array.isArray(aspects) ? aspects[i] : null;
+      return {
+        name: ing.name, quantityScu: ing.quantity_scu ?? null, quantity: ing.quantity ?? null,
+        slot: aspect?.name || aspect?.slot_name || null,
+        affects: aspect?.modifiers ? aspect.modifiers.map(m=>m.name||m.stat_name).filter(Boolean) : (aspect?.affects||[])
+      };
+    });
+    if(!c.name) c.name = d.output_name;
+    c.ingredientsFetchedAt = Date.now();
+    await saveCraftables();
+  } catch(e){ console.error('bake ingredients failed', c.blueprintSlug, e); }
+  loadingIngredients.delete(craftableId); render();
+}
+
+/* ---------------- Wiki API: full blueprint key index (for SCMDB import) ---------------- */
+async function ensureBlueprintKeyMap(force, onProgress){
+  if(!force && blueprintKeyMapState.map && Object.keys(blueprintKeyMapState.map).length && (Date.now()-blueprintKeyMapState.fetchedAt)<BP_KEYMAP_TTL_MS){
+    return blueprintKeyMapState.map;
+  }
+  const map = {};
+  let page=1, lastPage=1;
+  do{
+    const res = await fetch(`${WIKI_API_BASE}/blueprints?page[number]=${page}`);
+    const json = await res.json();
+    (json.data||[]).forEach(bp=>{ if(bp.key && bp.uuid) map[bp.key]=bp.uuid; });
+    lastPage = json.meta ? json.meta.last_page : 1;
+    if(onProgress) onProgress(page, lastPage);
+    page++;
+  } while(page<=lastPage);
+  blueprintKeyMapState = {map, fetchedAt:Date.now()};
+  await saveKeyMap();
+  return map;
+}
+
+async function importFromScmdb(scmdbData){
+  scmdbResult = null;
+  const entries = scmdbData.blueprints || [];
+  if(!entries.length){ scmdbResult={matched:0,baked:0,unmatched:[],total:0}; render(); return; }
+
+  scmdbBusy = {stage:'Loading Wiki blueprint index', loaded:0, total:1}; render();
+  const keyMap = await ensureBlueprintKeyMap(false, (loaded,total)=>{ scmdbBusy={stage:'Loading Wiki blueprint index', loaded, total}; render(); });
+
+  const toBake = [];
+  const unmatched = [];
+  entries.forEach(e=>{
+    const uuidVal = keyMap[e.tag];
+    if(!uuidVal){ unmatched.push(e.name||e.tag); return; }
+    let c = craftables.find(x=>x.blueprintSlug===uuidVal);
+    if(!c){ c = {id:uid(), name:e.name||e.tag, category:'', blueprintSlug:uuidVal, ingredients:[]}; craftables.push(c); }
+    toBake.push(c.id);
+  });
+  await saveCraftables();
+
+  // Bake ingredients for each, paced to stay well under the API's rate limit
+  let baked = 0;
+  for(const cid of toBake){
+    scmdbBusy = {stage:'Baking ingredient data', loaded:baked, total:toBake.length}; render();
+    await bakeIngredients(cid);
+    baked++;
+    await sleep(1000);
+  }
+  scmdbBusy = null;
+  scmdbResult = {matched: toBake.length, baked, unmatched, total: entries.length};
+  render();
+}
+
+/* ---------------- load existing repo files into the working draft ---------------- */
+async function loadExistingFiles(){
+  try{
+    if(loadUrls.materials){
+      const res = await fetch(loadUrls.materials + (loadUrls.materials.includes('?')?'&':'?')+'_='+Date.now());
+      if(res.ok){
+        const incoming = await res.json();
+        incoming.forEach(m=>{ if(!materials.some(x=>x.id===m.id)) materials.push(m); });
+        await saveMaterials();
+      }
+    }
+    if(loadUrls.craftables){
+      const res = await fetch(loadUrls.craftables + (loadUrls.craftables.includes('?')?'&':'?')+'_='+Date.now());
+      if(res.ok){
+        const incoming = await res.json();
+        incoming.forEach(c=>{ if(!craftables.some(x=>x.id===c.id)) craftables.push(c); });
+        await saveCraftables();
+      }
+    }
+  } catch(e){ alert('Could not load one of those URLs: '+e.message); }
+  render();
+}
+
+/* ---------------- render ---------------- */
+function render(){
+  document.getElementById('app').innerHTML = `
+    ${renderLoadPanel()}
+    ${renderMaterialsPanel()}
+    ${renderCraftablesPanel()}
+  `;
+  attachHandlers();
+}
+
+function renderLoadPanel(){
+  return `
+  <div class="panel">
+    <div class="panel-head"><h2>Load Existing Repo Files</h2></div>
+    <div class="muted" style="font-size:12px; margin-bottom:10px">Optional: pull in your current materials.json/craftables.json to edit and re-export, rather than starting from scratch.</div>
+    <label class="f">materials.json URL<input id="loadMatUrl" style="width:100%" value="${esc(loadUrls.materials)}"></label>
+    <label class="f" style="margin-top:8px">craftables.json URL<input id="loadCraftUrl" style="width:100%" value="${esc(loadUrls.craftables)}"></label>
+    <div class="row-flex" style="margin-top:10px">
+      <button class="btn primary" id="loadExistingBtn">Load into working draft</button>
+    </div>
+  </div>`;
+}
+
+function renderMaterialsPanel(){
+  const rows = materials.map(m=>{
+    const bands = (m.qualityBands||[]).slice(0,8);
+    while(bands.length<8) bands.push('');
+    const bandInputs = bands.map((v,i)=>`<input type="number" min="0" max="1000" value="${v}" data-band-mat="${m.id}" data-band-idx="${i}" style="width:56px; margin:1px" title="Band ${i+1}">`).join('');
+    return `<tr>
+    <td><strong>${esc(m.name)}</strong>${m.idItem?`<br><a class="link mono" style="font-size:11px" href="https://uexcorp.space/items/info?id=${m.idItem}" target="_blank">UEX #${m.idItem}</a>`:'<br><span class="pill warn">no UEX link</span>'}</td>
+    <td><select data-unitbasis="${m.id}" style="font-size:12px">
+      <option value="scu" ${m.unitBasis!=='piece'?'selected':''}>SCU-based</option>
+      <option value="piece" ${m.unitBasis==='piece'?'selected':''}>Piece-based</option>
+    </select></td>
+    <td>
+      <div style="display:flex; flex-wrap:wrap; gap:2px; max-width:250px">${bandInputs}</div>
+      ${m.qualityBandsFetchedAt ? `<span class="muted" style="font-size:10px">${m.qualityBandsSource==='gamedata'?'from game data':'manually set'} &middot; ${timeAgo(m.qualityBandsFetchedAt)}</span>` : '<span class="muted" style="font-size:10px">type values in directly, or sample from game data to seed them</span>'}
+    </td>
+    <td style="white-space:nowrap">
+      <button class="btn small" data-refresh-quality="${m.id}">${loadingQuality.has(m.id)?'<span class="loader"></span>':'Sample (game data)'}</button>
+      <button class="btn small danger" data-delete-material="${m.id}">Delete</button>
+    </td>
+  </tr>`;
+  }).join('') || '';
+
+  return `
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Materials</h2>
+      <button class="btn small" id="exportMaterialsBtn" ${materials.length?'':'disabled'}>Export materials.json</button>
+    </div>
+    <div class="search-results">
+      <label class="f">Search UEX catalog to add
+        <input id="addMaterialSearch" placeholder="e.g. Lindinium" value="${esc(addMaterialSearchQuery)}" autocomplete="off">
+      </label>
+      ${addMaterialSearchQuery.length>=2 ? renderSearchResults(searchCatalog(addMaterialSearchQuery)) : ''}
+    </div>
+    <div class="row-flex" style="margin-top:8px">
+      ${loadingCategoryItems?'<span class="muted" style="font-size:12px"><span class="loader"></span> loading catalog...</span>':''}
+      <button class="btn small" id="reloadCategoriesBtn">Reload UEX categories</button>
+      ${categories.map(c=>`<span class="muted mono" style="font-size:11px">${esc(c.label)}: ${itemCatalog[c.id]?itemCatalog[c.id].items.length:0}</span>`).join(' &middot; ')}
+    </div>
+    <hr class="divider">
+    <div class="eyebrow">Bulk-paste quality bands</div>
+    <div class="muted" style="font-size:12px; margin-bottom:8px">
+      One material per line: <span class="mono">Name: b1,b2,b3,...</span> &mdash; matches by name against materials already in the list below (case-insensitive). Handy after a round of digging through Data Source Explorer.
+    </div>
+    <textarea id="bulkBandsInput" rows="5" style="width:100%; font-family:monospace; font-size:12px" placeholder="Lindinium: 305,585,618,729,853,930,954,1000
+Iron: 250,400,520,650,...
+Gold: 300,...">${esc(bulkBandsDraft)}</textarea>
+    <div class="row-flex" style="margin-top:8px">
+      <button class="btn primary" id="applyBulkBandsBtn">Apply</button>
+    </div>
+    ${bulkBandsResult ? `<div class="muted" style="font-size:12px; margin-top:8px">
+      Applied to ${bulkBandsResult.matched.length}: ${bulkBandsResult.matched.map(esc).join(', ')||'&mdash;'}
+      ${bulkBandsResult.unmatched.length ? `<br><span class="pill warn">No matching material for: ${bulkBandsResult.unmatched.map(esc).join(', ')}</span>` : ''}
+    </div>` : ''}
+    <hr class="divider">
+    ${materials.length ? `<table><thead><tr><th>Material</th><th>Unit basis</th><th>Quality bands</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty">No materials yet.</div>'}
+  </div>`;
+}
+function renderSearchResults(results){
+  if(!results.length) return `<div class="search-results-list"><div class="muted" style="cursor:default">No matches loaded.</div></div>`;
+  return `<div class="search-results-list">${results.map(r=>`<div data-pick-material data-item-id="${r.idItem}" data-item-name="${esc(r.name)}" data-item-category="${r.idCategory}">${esc(r.name)} <span class="muted mono" style="font-size:11px">#${r.idItem}</span></div>`).join('')}</div>`;
+}
+
+function renderCraftablesPanel(){
+  const rows = craftables.map(c=>{
+    const ingSummary = (c.ingredients||[]).map(i=>esc(i.name)).join(', ') || '<span class="muted">not baked yet</span>';
+    return `<tr>
+      <td><strong>${esc(c.name)}</strong><br><span class="muted mono" style="font-size:11px">${esc(c.category||'')}</span></td>
+      <td class="mono" style="font-size:11px">${esc(c.blueprintSlug||'')}</td>
+      <td style="font-size:12px">${ingSummary}${c.ingredientsFetchedAt?`<br><span class="muted" style="font-size:10px">baked ${timeAgo(c.ingredientsFetchedAt)}</span>`:''}</td>
+      <td style="white-space:nowrap">
+        <button class="btn small" data-bake="${c.id}">${loadingIngredients.has(c.id)?'<span class="loader"></span>':'Bake / refresh'}</button>
+        <button class="btn small danger" data-delete-craftable="${c.id}">Delete</button>
+      </td>
+    </tr>`;
+  }).join('') || '';
+
+  return `
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Craftables</h2>
+      <button class="btn small" id="exportCraftablesBtn" ${craftables.length?'':'disabled'}>Export craftables.json</button>
+    </div>
+    <div class="row-flex">
+      <label class="f">Name<input id="newCraftName" style="width:200px" placeholder="e.g. Pulverizer LMG"></label>
+      <label class="f">Category<input id="newCraftCategory" style="width:140px" placeholder="Weapons"></label>
+      <label class="f">Blueprint slug<input id="newCraftSlug" style="width:180px" placeholder="pulverizer-lmg"></label>
+      <button class="btn primary" id="addCraftableBtn">Add &amp; bake</button>
+    </div>
+    <hr class="divider">
+    <div class="eyebrow">Bulk import from SCMDB</div>
+    <div class="muted" style="font-size:12px; margin-bottom:8px">Upload your SCMDB "owned blueprints" export. Matches by exact internal game ID against the full Wiki blueprint index, then bakes ingredient data for each match (paced ~1/sec to stay well under the API's rate limit &mdash; a couple hundred blueprints takes a few minutes).</div>
+    <input type="file" id="scmdbFile" accept="application/json">
+    ${scmdbBusy ? `<div class="muted" style="font-size:12px; margin-top:8px"><span class="loader"></span> ${esc(scmdbBusy.stage)} &mdash; ${scmdbBusy.loaded}/${scmdbBusy.total}</div>` : ''}
+    ${scmdbResult ? `<div class="muted" style="font-size:12px; margin-top:8px">Matched ${scmdbResult.matched} of ${scmdbResult.total}, baked ${scmdbResult.baked}.${scmdbResult.unmatched.length?`<br>Not found in Wiki index: ${scmdbResult.unmatched.map(esc).join(', ')}`:''}</div>` : ''}
+    <hr class="divider">
+    ${craftables.length ? `<table><thead><tr><th>Name</th><th>Slug</th><th>Ingredients</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty">No craftables yet.</div>'}
+  </div>`;
+}
+
+/* ---------------- handlers ---------------- */
+function attachHandlers(){
+  const loadExistingBtn = document.getElementById('loadExistingBtn');
+  if(loadExistingBtn) loadExistingBtn.onclick = ()=>{
+    loadUrls = {materials:document.getElementById('loadMatUrl').value.trim(), craftables:document.getElementById('loadCraftUrl').value.trim()};
+    loadExistingFiles();
+  };
+
+  const addMaterialSearch = document.getElementById('addMaterialSearch');
+  if(addMaterialSearch) addMaterialSearch.oninput = e=>{ addMaterialSearchQuery = e.target.value; render(); const el=document.getElementById('addMaterialSearch'); if(el){el.focus(); el.setSelectionRange(el.value.length, el.value.length);} };
+  document.querySelectorAll('[data-pick-material]').forEach(el=>{
+    el.onclick = async ()=>{
+      const idItem = Number(el.dataset.itemId), name = el.dataset.itemName, idCategory = Number(el.dataset.itemCategory);
+      if(materials.some(m=>m.idItem===idItem)){ alert('Already added.'); return; }
+      // if there's an unlinked placeholder with a matching name (e.g. from a names-only
+      // seed file), fill it in rather than creating a duplicate row
+      const existing = materials.find(m=>!m.idItem && m.name.toLowerCase()===name.toLowerCase());
+      if(existing){
+        existing.idItem = idItem;
+        existing.idCategory = idCategory;
+        existing.name = name; // adopt UEX's canonical spelling/casing
+      } else {
+        materials.push({id:uid(), idItem, idCategory, name, unitBasis:'scu', qualityBands:null, qualityBandsFetchedAt:0});
+      }
+      addMaterialSearchQuery = '';
+      await saveMaterials(); render();
+    };
+  });
+  document.querySelectorAll('[data-unitbasis]').forEach(el=>{
+    el.onchange = async ()=>{ const m=materials.find(x=>x.id===el.dataset.unitbasis); if(m){m.unitBasis=el.value; await saveMaterials();} };
+  });
+  document.querySelectorAll('[data-band-mat]').forEach(el=>{
+    el.onchange = async ()=>{
+      const matId = el.dataset.bandMat;
+      const m = materials.find(x=>x.id===matId);
+      if(!m) return;
+      const inputs = document.querySelectorAll(`[data-band-mat="${matId}"]`);
+      const values = Array.from(inputs)
+        .map(i=>i.value.trim())
+        .filter(v=>v!=='')
+        .map(Number)
+        .filter(n=>!isNaN(n) && n>=0 && n<=1000);
+      const uniqueSorted = [...new Set(values)].sort((a,b)=>a-b);
+      m.qualityBands = uniqueSorted.length ? uniqueSorted : null;
+      m.qualityBandsSource = uniqueSorted.length ? 'manual' : null;
+      m.qualityBandsFetchedAt = uniqueSorted.length ? Date.now() : 0;
+      await saveMaterials();
+      render();
+    };
+  });
+  document.querySelectorAll('[data-refresh-quality]').forEach(el=>{
+    el.onclick = ()=>refreshQualityBands(el.dataset.refreshQuality);
+  });
+  const applyBulkBandsBtn = document.getElementById('applyBulkBandsBtn');
+  if(applyBulkBandsBtn) applyBulkBandsBtn.onclick = async ()=>{
+    const text = document.getElementById('bulkBandsInput').value;
+    bulkBandsDraft = text;
+    const matched = [], unmatched = [];
+    text.split('\n').map(l=>l.trim()).filter(Boolean).forEach(line=>{
+      const idx = line.indexOf(':');
+      if(idx===-1){ unmatched.push(line); return; }
+      const name = line.slice(0, idx).trim();
+      const nums = line.slice(idx+1).split(',')
+        .map(s=>s.trim()).filter(s=>s!=='')
+        .map(Number).filter(n=>!isNaN(n) && n>=0 && n<=1000);
+      const m = materials.find(x=>x.name.toLowerCase()===name.toLowerCase());
+      if(!m){ unmatched.push(name); return; }
+      const uniqueSorted = [...new Set(nums)].sort((a,b)=>a-b);
+      if(uniqueSorted.length){ m.qualityBands = uniqueSorted; m.qualityBandsSource = 'manual'; m.qualityBandsFetchedAt = Date.now(); matched.push(m.name); }
+      else { unmatched.push(name+' (no valid numbers)'); }
+    });
+    await saveMaterials();
+    bulkBandsResult = {matched, unmatched};
+    bulkBandsDraft = '';
+    render();
+  };
+  document.querySelectorAll('[data-delete-material]').forEach(el=>{
+    el.onclick = async ()=>{ materials = materials.filter(m=>m.id!==el.dataset.deleteMaterial); await saveMaterials(); render(); };
+  });
+  const reloadCategoriesBtn = document.getElementById('reloadCategoriesBtn');
+  if(reloadCategoriesBtn) reloadCategoriesBtn.onclick = ()=>ensureAllCategoriesLoaded(true);
+  const exportMaterialsBtn = document.getElementById('exportMaterialsBtn');
+  if(exportMaterialsBtn) exportMaterialsBtn.onclick = ()=>downloadJson(materials.map(m=>({
+    id:m.id, idItem:m.idItem, idCategory:m.idCategory||null, name:m.name, unitBasis:m.unitBasis||'scu',
+    qualityBands:m.qualityBands||null, qualityBandsSource:m.qualityBandsSource||null, qualityBandsFetchedAt:m.qualityBandsFetchedAt||0
+  })), 'materials.json');
+
+  const addCraftableBtn = document.getElementById('addCraftableBtn');
+  if(addCraftableBtn) addCraftableBtn.onclick = async ()=>{
+    const name = document.getElementById('newCraftName').value.trim();
+    const category = document.getElementById('newCraftCategory').value.trim();
+    const blueprintSlug = document.getElementById('newCraftSlug').value.trim();
+    if(!blueprintSlug){ alert('Blueprint slug is required.'); return; }
+    const c = {id:uid(), name, category, blueprintSlug, ingredients:[]};
+    craftables.push(c);
+    await saveCraftables(); render();
+    await bakeIngredients(c.id);
+  };
+  document.querySelectorAll('[data-bake]').forEach(el=>{ el.onclick = ()=>bakeIngredients(el.dataset.bake); });
+  document.querySelectorAll('[data-delete-craftable]').forEach(el=>{
+    el.onclick = async ()=>{ craftables = craftables.filter(c=>c.id!==el.dataset.deleteCraftable); await saveCraftables(); render(); };
+  });
+  const exportCraftablesBtn = document.getElementById('exportCraftablesBtn');
+  if(exportCraftablesBtn) exportCraftablesBtn.onclick = ()=>downloadJson(craftables.map(c=>({
+    id:c.id, name:c.name, category:c.category||'', blueprintSlug:c.blueprintSlug,
+    ingredients:c.ingredients||[], ingredientsFetchedAt:c.ingredientsFetchedAt||0
+  })), 'craftables.json');
+
+  const scmdbFile = document.getElementById('scmdbFile');
+  if(scmdbFile) scmdbFile.onchange = async e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    try{ await importFromScmdb(JSON.parse(await file.text())); }
+    catch(err){ alert('Could not read that file as an SCMDB export.'); }
+  };
+}
+
+function downloadJson(data, filename){
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+}
+
+(async function init(){
+  await loadAll();
+  render();
+  ensureAllCategoriesLoaded(false);
+})();
+</script>
+</body>
+</html>

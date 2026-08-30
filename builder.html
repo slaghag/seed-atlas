@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QM // Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0a1220; --panel:#101c30; --panel-raised:#16273f;
+    --border:#213a58; --border-bright:#345880;
+    --text:#eef2f7; --text-dim:#8ba0ba;
+    --amber:#ffffff; --orange:#d4af37; --orange-dim:#a3841f;
+    --green:#4ade80; --red:#ff5c5c;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--void); color:var(--text); font-family:'Inter',sans-serif; font-size:14px;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  h1,h2,.label,.tab,.btn,th,.eyebrow{font-family:'Rajdhani',sans-serif; letter-spacing:.03em;}
+  header{display:flex; align-items:center; justify-content:space-between; padding:16px 22px 14px; border-bottom:2px solid var(--orange); box-shadow:0 4px 0 -2px var(--void), 0 5px 0 -2px rgba(255,255,255,.35); background:linear-gradient(180deg,#0d1a2c,#0a1220);}
+  header h1{margin:0; font-size:22px; font-weight:700; text-transform:uppercase;}
+  header h1 span{color:var(--orange);}
+  header .sub{color:var(--text-dim); font-size:11px; text-transform:uppercase; letter-spacing:.14em; margin-top:2px;}
+  nav{display:flex; gap:2px; padding:0 22px; border-bottom:1px solid var(--border); background:#0c1626;}
+  .tab{padding:12px 18px; cursor:pointer; color:var(--text-dim); font-weight:600; text-transform:uppercase; font-size:13px; border-bottom:2px solid transparent; user-select:none;}
+  .tab:hover{color:var(--text);}
+  .tab.active{color:var(--orange); border-bottom-color:var(--orange);}
+  main{padding:22px; max-width:1100px; margin:0 auto;}
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:18px; margin-bottom:18px;}
+  .panel-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:10px; flex-wrap:wrap;}
+  .panel-head h2{margin:0; font-size:16px; text-transform:uppercase;}
+  .eyebrow{font-size:11px; color:var(--orange); text-transform:uppercase; letter-spacing:.14em; margin-bottom:4px;}
+  .btn{background:var(--panel-raised); border:1px solid var(--border-bright); color:var(--text); padding:7px 14px; border-radius:4px; cursor:pointer; font-size:13px; font-weight:600; text-transform:uppercase;}
+  .btn:hover{border-color:var(--orange); color:var(--orange);}
+  .btn.primary{background:var(--orange); border-color:var(--orange); color:#0c0900;}
+  .btn.primary:hover{background:#e6c257; border-color:#e6c257; color:#0c0900;}
+  .btn.danger{border-color:var(--red); color:var(--red); background:transparent;}
+  .btn.danger:hover{background:var(--red); color:#1a0000;}
+  .btn.small{padding:4px 9px; font-size:11px;}
+  .btn:disabled{opacity:.35; cursor:not-allowed;}
+  input,select{background:var(--void); border:1px solid var(--border-bright); color:var(--text); padding:7px 9px; border-radius:4px; font-family:'JetBrains Mono',monospace; font-size:13px;}
+  input:focus,select:focus{outline:none; border-color:var(--orange);}
+  label.f{display:flex; flex-direction:column; gap:4px; font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em;}
+  table{width:100%; border-collapse:collapse;}
+  th{text-align:left; font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; padding:8px 10px; border-bottom:1px solid var(--border);}
+  td{padding:10px; border-bottom:1px solid var(--border); vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .empty{color:var(--text-dim); font-style:italic; padding:20px 0; text-align:center;}
+  .row-flex{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;}
+  .muted{color:var(--text-dim);}
+  .pill{display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:700; text-transform:uppercase;}
+  .pill.warn{background:rgba(212,175,55,.15); color:var(--orange);}
+  .pill.ok{background:rgba(74,222,128,.15); color:var(--green);}
+  .divider{border:none; border-top:1px solid var(--border); margin:14px 0;}
+  .ingredient-card{background:var(--void); border-radius:4px; padding:12px; margin-bottom:10px;}
+  .ingredient-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;}
+  .ingredient-head .slot{color:var(--orange); font-weight:700; text-transform:uppercase; font-size:12px;}
+  .qslider-row{display:flex; align-items:center; gap:10px; margin:6px 0;}
+  .qslider-row input[type=range]{flex:1; accent-color:var(--orange); height:4px;}
+  .qslider-val{font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--orange); min-width:56px; text-align:right;}
+  .affects{font-size:11px; color:var(--text-dim);}
+  .affects b{color:var(--text);}
+  .loader{display:inline-block; width:12px; height:12px; border:2px solid var(--border-bright); border-top-color:var(--orange); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>QM<span>://</span>BUILDER</h1>
+    <div class="sub">Private &middot; crafting queue &amp; purchase orders</div>
+  </div>
+  <div>
+    <button class="btn small" id="exportBackupBtn">Export backup</button>
+    <button class="btn small" id="importBackupBtn">Import backup</button>
+    <input type="file" id="importBackupFile" accept="application/json" style="display:none">
+  </div>
+</header>
+<nav id="tabs">
+  <div class="tab" data-tab="queue">Build Queue</div>
+  <div class="tab" data-tab="materials">Materials</div>
+  <div class="tab" data-tab="settings">Settings</div>
+</nav>
+<main id="app"></main>
+
+<script>
+/*
+  This tool makes no calls to UEX or the Wiki API. All of that lives in
+  catalog-admin.html now. Builder just reads the shared materials.json /
+  craftables.json (which already have UEX links, unit basis, quality bands,
+  and resolved ingredients baked in) plus your personal queue and on-hand
+  counts, and exports a purchase order for the buyer.
+*/
+
+let sharedMaterials = [];   // {id, idItem, name, unitBasis, qualityBands, qualityBandsFetchedAt}
+let sharedCraftables = [];  // {id, name, category, blueprintSlug, ingredients:[{name,slot,quantityScu,affects}]}
+let catalogUrls = {materials:'', craftables:''};
+let catalogError = null;
+let loadingCatalog = false;
+
+let queue = [];       // {id, craftableId, qty, ingredients:[{materialId, materialName, quality, quantityScu}]}
+let stock = {};        // materialId -> {onHand}
+
+let currentTab = 'queue';
+let pendingBuild = null; // {craftableId, qty, craftable, ingredients:[{...,quality}]}
+
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2));
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtNum(n){ return Number(n||0).toLocaleString(undefined,{maximumFractionDigits:3}); }
+const FALLBACK_QUALITY_BANDS = [0,125,250,375,500,625,750,875,1000];
+
+/* ---------------- persistence ---------------- */
+async function getKey(key, fallback){ try{ const r = await window.storage.get(key, false); return r ? JSON.parse(r.value) : fallback; }catch(e){ return fallback; } }
+async function saveKey(key, value){ try{ await window.storage.set(key, JSON.stringify(value), false); }catch(e){ console.error('save failed', key, e); } }
+const saveQueue = () => saveKey('bd-queue', queue);
+const saveStock = () => saveKey('bd-stock', stock);
+const saveCatalogUrls = () => saveKey('bd-catalogurls', catalogUrls);
+
+async function loadAll(){
+  queue = await getKey('bd-queue', []);
+  stock = await getKey('bd-stock', {});
+  catalogUrls = await getKey('bd-catalogurls', {materials:'', craftables:''});
+}
+
+function getStock(materialId){ return stock[materialId] || {onHand:0}; }
+async function setStock(materialId, patch){ stock[materialId] = {...getStock(materialId), ...patch}; await saveStock(); }
+function matById(id){ return sharedMaterials.find(m=>m.id===id); }
+function matByNameLoose(name){
+  const n=(name||'').toLowerCase();
+  return sharedMaterials.find(m=>m.name.toLowerCase()===n) || sharedMaterials.find(m=>m.name.toLowerCase().includes(n)||n.includes(m.name.toLowerCase()));
+}
+function qualitySnapPoints(materialId){
+  const m = matById(materialId);
+  return (m && m.qualityBands && m.qualityBands.length>1) ? m.qualityBands : FALLBACK_QUALITY_BANDS;
+}
+
+async function loadSharedCatalog(force){
+  if(!catalogUrls.materials && !catalogUrls.craftables) return;
+  loadingCatalog = true; catalogError = null; render();
+  try{
+    if(catalogUrls.materials){
+      const res = await fetch(catalogUrls.materials + (force?(catalogUrls.materials.includes('?')?'&':'?')+'_='+Date.now():''));
+      if(!res.ok) throw new Error('materials.json fetch failed ('+res.status+')');
+      sharedMaterials = await res.json();
+    }
+    if(catalogUrls.craftables){
+      const res = await fetch(catalogUrls.craftables + (force?(catalogUrls.craftables.includes('?')?'&':'?')+'_='+Date.now():''));
+      if(!res.ok) throw new Error('craftables.json fetch failed ('+res.status+')');
+      sharedCraftables = await res.json();
+    }
+  } catch(e){ catalogError = e.message; }
+  loadingCatalog = false; render();
+}
+
+/* ---------------- render ---------------- */
+function render(){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===currentTab));
+  const app = document.getElementById('app');
+  if(currentTab==='queue') app.innerHTML = renderQueueTab();
+  else if(currentTab==='materials') app.innerHTML = renderMaterialsTab();
+  else if(currentTab==='settings') app.innerHTML = renderSettingsTab();
+  attachHandlers();
+}
+
+/* ---------------- QUEUE TAB ---------------- */
+function renderQueueTab(){
+  if(!sharedCraftables.length){
+    return `<div class="panel"><div class="empty">No craftables loaded yet. Set your catalog URLs in Settings.</div></div>`;
+  }
+  const craftableOptions = sharedCraftables.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+
+  const queueRows = queue.map(q=>{
+    const c = sharedCraftables.find(x=>x.id===q.craftableId);
+    const lines = q.ingredients.map(ing=>{
+      const mat = matById(ing.materialId);
+      return `${esc(mat?mat.name:ing.materialName)} &ge;Q${ing.quality}`;
+    }).join(', ');
+    return `<tr>
+      <td><strong>${c?esc(c.name):'(deleted)'}</strong></td>
+      <td class="mono">${q.qty}</td>
+      <td style="font-size:12px">${lines || '<span class="muted">no ingredient data</span>'}</td>
+      <td><button class="btn small danger" data-remove-queue="${q.id}">Remove</button></td>
+    </tr>`;
+  }).join('') || '';
+
+  return `
+  <div class="panel">
+    <div class="panel-head"><h2>Add to Build Queue</h2></div>
+    <div class="row-flex">
+      <label class="f" style="flex:2">Craftable
+        <select id="pickCraftable">${craftableOptions}</select>
+      </label>
+      <label class="f">Quantity<input type="number" id="pickQty" value="1" min="1" style="width:90px"></label>
+      <button class="btn primary" id="configureBtn">Configure quality &amp; add</button>
+    </div>
+  </div>
+
+  ${pendingBuild ? renderPendingBuild() : ''}
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Queue</h2>
+      <button class="btn primary" id="exportOrderBtn" ${queue.length?'':'disabled'}>Export purchase order</button>
+    </div>
+    ${queue.length ? `<table><thead><tr><th>Craftable</th><th>Qty</th><th>Ingredient quality</th><th></th></tr></thead><tbody>${queueRows}</tbody></table>` : '<div class="empty">Nothing queued yet.</div>'}
+  </div>`;
+}
+
+function renderPendingBuild(){
+  const pb = pendingBuild;
+  if(!pb.craftable.ingredients || !pb.craftable.ingredients.length){
+    return `<div class="panel"><div class="empty">This craftable has no ingredient data yet &mdash; bake it in Catalog Admin first.</div></div>`;
+  }
+  const rows = pb.ingredients.map((ing,i)=>{
+    const mat = matByNameLoose(ing.name);
+    const points = qualitySnapPoints(mat?mat.id:null);
+    let idx = points.indexOf(ing.quality);
+    if(idx===-1){ idx = points.findIndex(p=>p>=ing.quality); if(idx===-1) idx = points.length-1; }
+    const affectsText = ing.affects && ing.affects.length ? ing.affects.join(', ') : 'no stat data available';
+    const hasRealBands = mat && mat.qualityBands && mat.qualityBands.length>1;
+    return `
+    <div class="ingredient-card">
+      <div class="ingredient-head">
+        <span class="slot">${esc(ing.slot || ing.name)}</span>
+        <span class="mono muted" style="font-size:12px">${esc(ing.name)} &middot; ${ing.quantityScu?ing.quantityScu+' SCU':(ing.quantity||'')} per unit</span>
+      </div>
+      ${!mat ? `<div class="pill warn">not in the shared materials catalog &mdash; add it in Catalog Admin</div>` : ''}
+      <div class="qslider-row">
+        <input type="range" min="0" max="${points.length-1}" step="1" value="${idx}" data-pending-quality="${i}">
+        <span class="qslider-val mono">Q${points[idx]}</span>
+      </div>
+      <div class="muted" style="font-size:10px; margin:-2px 0 4px">${hasRealBands?`snapped to ${points.length} real bands (from Catalog Admin)`:'generic 8-band scale &mdash; no quality sample baked for this material yet'}</div>
+      <div class="affects">Tunes: <b>${esc(affectsText)}</b></div>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="panel">
+    <div class="panel-head"><h2>${esc(pb.craftable.name)}</h2></div>
+    ${rows}
+    <hr class="divider">
+    <div class="row-flex">
+      <button class="btn primary" id="confirmAddQueueBtn">Add to queue</button>
+      <button class="btn" id="cancelPendingBtn">Cancel</button>
+    </div>
+  </div>`;
+}
+
+/* ---------------- MATERIALS TAB ---------------- */
+function renderMaterialsTab(){
+  const rows = sharedMaterials.map(m=>`<tr>
+    <td><strong>${esc(m.name)}</strong>${m.idItem?`<br><a class="mono" style="font-size:11px; color:var(--orange)" href="https://uexcorp.space/items/info?id=${m.idItem}" target="_blank">UEX #${m.idItem}</a>`:'<br><span class="pill warn">no UEX link</span>'}</td>
+    <td class="mono" style="font-size:12px">${m.unitBasis==='piece'?'Piece-based':'SCU-based'}</td>
+    <td class="mono" style="font-size:12px">${m.qualityBands?m.qualityBands.join(', '):'<span class="muted">not sampled</span>'}</td>
+    <td class="mono"><input type="number" min="0" step="0.01" value="${getStock(m.id).onHand||0}" data-onhand-mat="${m.id}" style="width:100px"></td>
+  </tr>`).join('') || '';
+
+  return `
+  <div class="panel">
+    <div class="panel-head"><h2>Materials</h2></div>
+    <div class="muted" style="font-size:12px; margin-bottom:12px">This list comes from the shared catalog (read-only here &mdash; add or edit materials in Catalog Admin). On-hand is personal to your browser and nets out of the exported purchase order.</div>
+    ${sharedMaterials.length ? `<table><thead><tr><th>Material</th><th>Unit basis</th><th>Quality bands</th><th>On hand</th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="empty">No materials loaded yet &mdash; set catalog URLs in Settings.</div>'}
+  </div>`;
+}
+
+/* ---------------- SETTINGS TAB ---------------- */
+function renderSettingsTab(){
+  return `
+  <div class="panel">
+    <div class="panel-head"><h2>Shared Catalog</h2></div>
+    <div class="muted" style="font-size:12px; margin-bottom:12px">Point these at your org's GitHub-hosted materials.json and craftables.json. Everything about what a material links to, its unit basis, quality bands, and craftable ingredient lists is maintained in Catalog Admin and lives in these files &mdash; Builder only reads them.</div>
+    <label class="f">materials.json URL<input id="matUrlInput" style="width:100%" value="${esc(catalogUrls.materials||'')}"></label>
+    <label class="f" style="margin-top:8px">craftables.json URL<input id="craftUrlInput" style="width:100%" value="${esc(catalogUrls.craftables||'')}"></label>
+    <div class="row-flex" style="margin-top:10px">
+      <button class="btn primary" id="saveCatalogUrlsBtn">${loadingCatalog?'<span class="loader"></span> Loading…':'Save & load'}</button>
+      <span class="muted mono" style="font-size:12px">${sharedMaterials.length} materials, ${sharedCraftables.length} craftables loaded</span>
+    </div>
+    ${catalogError ? `<div class="pill" style="background:rgba(255,92,92,.15); color:var(--red); margin-top:8px">Load failed: ${esc(catalogError)}</div>` : ''}
+  </div>`;
+}
+
+/* ---------------- handlers ---------------- */
+function attachHandlers(){
+  document.querySelectorAll('[data-remove-queue]').forEach(el=>{
+    el.onclick = async ()=>{ queue = queue.filter(q=>q.id!==el.dataset.removeQueue); await saveQueue(); render(); };
+  });
+
+  const configureBtn = document.getElementById('configureBtn');
+  if(configureBtn) configureBtn.onclick = ()=>{
+    const craftableId = document.getElementById('pickCraftable').value;
+    const qty = Math.max(1, Number(document.getElementById('pickQty').value)||1);
+    const c = sharedCraftables.find(x=>x.id===craftableId);
+    if(!c) return;
+    pendingBuild = {
+      craftableId, qty, craftable: c,
+      ingredients: (c.ingredients||[]).map(ing=>{
+        const mat = matByNameLoose(ing.name);
+        const points = qualitySnapPoints(mat?mat.id:null);
+        return {...ing, quality: points[points.length-1]};
+      })
+    };
+    render();
+  };
+
+  document.querySelectorAll('[data-pending-quality]').forEach(el=>{
+    el.oninput = ()=>{
+      const i = Number(el.dataset.pendingQuality);
+      const ing = pendingBuild.ingredients[i];
+      const mat = matByNameLoose(ing.name);
+      const points = qualitySnapPoints(mat?mat.id:null);
+      ing.quality = points[Number(el.value)];
+      el.parentElement.querySelector('.qslider-val').textContent = 'Q'+ing.quality;
+    };
+  });
+  const confirmAddQueueBtn = document.getElementById('confirmAddQueueBtn');
+  if(confirmAddQueueBtn) confirmAddQueueBtn.onclick = async ()=>{
+    const ingredients = pendingBuild.ingredients.map(ing=>{
+      const mat = matByNameLoose(ing.name);
+      return {materialId: mat?mat.id:('unlinked:'+ing.name), materialName: ing.name, quality: ing.quality, quantityScu: ing.quantityScu||null};
+    });
+    queue.push({id:uid(), craftableId:pendingBuild.craftableId, qty:pendingBuild.qty, ingredients});
+    pendingBuild = null;
+    await saveQueue(); render();
+  };
+  const cancelPendingBtn = document.getElementById('cancelPendingBtn');
+  if(cancelPendingBtn) cancelPendingBtn.onclick = ()=>{ pendingBuild = null; render(); };
+
+  const exportOrderBtn = document.getElementById('exportOrderBtn');
+  if(exportOrderBtn) exportOrderBtn.onclick = ()=>{
+    const need = {};
+    queue.forEach(q=>{
+      q.ingredients.forEach(ing=>{
+        const key = ing.materialId+'::'+ing.quality;
+        need[key] = need[key] || {materialId:ing.materialId, materialName:ing.materialName, quality:ing.quality, qty:0};
+        need[key].qty += (Number(ing.quantityScu)||0) * q.qty;
+      });
+    });
+    const order = Object.values(need).map(n=>{
+      const mat = matById(n.materialId);
+      const onHand = mat ? Number(getStock(mat.id).onHand||0) : 0;
+      const stillNeed = Math.max(0, n.qty - onHand);
+      return {
+        materialId: n.materialId, name: mat?mat.name:n.materialName, idItem: mat?mat.idItem:null,
+        idCategory: mat?(mat.idCategory||null):null,
+        unitBasis: mat?(mat.unitBasis||'scu'):'scu', quality: n.quality, qty: Math.round(stillNeed*1000)/1000
+      };
+    }).filter(item=>item.qty>0);
+    const blob = new Blob([JSON.stringify(order,null,2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'purchase-order.json'; a.click();
+  };
+
+  document.querySelectorAll('[data-onhand-mat]').forEach(el=>{
+    el.onchange = async ()=>{ await setStock(el.dataset.onhandMat, {onHand:Number(el.value)||0}); };
+  });
+
+  const saveCatalogUrlsBtn = document.getElementById('saveCatalogUrlsBtn');
+  if(saveCatalogUrlsBtn) saveCatalogUrlsBtn.onclick = async ()=>{
+    catalogUrls = {materials:document.getElementById('matUrlInput').value.trim(), craftables:document.getElementById('craftUrlInput').value.trim()};
+    await saveCatalogUrls();
+    await loadSharedCatalog(true);
+  };
+}
+
+/* ---------------- tabs / backup ---------------- */
+document.getElementById('tabs').addEventListener('click', e=>{
+  const t = e.target.closest('.tab');
+  if(!t) return;
+  currentTab = t.dataset.tab;
+  pendingBuild = null;
+  render();
+});
+
+document.getElementById('exportBackupBtn').onclick = ()=>{
+  const data = {queue, stock, catalogUrls, exportedAt:new Date().toISOString()};
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'builder-backup.json'; a.click();
+};
+document.getElementById('importBackupBtn').onclick = ()=>document.getElementById('importBackupFile').click();
+document.getElementById('importBackupFile').onchange = async e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const data = JSON.parse(await file.text());
+    if(!confirm('This replaces your current queue, on-hand counts, and catalog URLs. Continue?')) return;
+    queue = data.queue||[]; stock = data.stock||{}; catalogUrls = data.catalogUrls||{materials:'',craftables:''};
+    await saveQueue(); await saveStock(); await saveCatalogUrls();
+    render();
+    loadSharedCatalog(false);
+  }catch(err){ alert('Could not read that file as a backup.'); }
+};
+
+/* ---------------- boot ---------------- */
+(async function init(){
+  await loadAll();
+  render();
+  loadSharedCatalog(false);
+})();
+</script>
+</body>
+</html>
